@@ -67,6 +67,7 @@ class ThinEngine:
         self.rels = sorted(ir.get('relations', []), key=lambda r: json.dumps(r, sort_keys=True, default=str))
         self.facts: set[Fact] = set()
         self.proofs: dict[Fact, set[Derivation]] = defaultdict(set)
+        self.exposure_evidence = set()
         self.blocked: list[str] = []
 
     def add(self, fact: Fact, proof: Derivation | None = None) -> bool:
@@ -261,6 +262,10 @@ class ThinEngine:
                 if ports and asset.get('port') not in ports: continue
                 protocol = self.attr(r, 'protocol')
                 if protocol not in (None, 'any', asset.get('protocol')): continue
+                for host in hosted:
+                    if self.matches(endpoint, self.src(host)):
+                        self.exposure_evidence.add((asset_id, self.rel_id(r), self.rel_id(host),
+                                                    self.attr(r, 'via') or ''))
                 msg = f'R10 candidate: {self.src(r)} -> {asset_id} (requires success assumption)'
                 if msg not in self.blocked: self.blocked.append(msg)
 
@@ -272,8 +277,30 @@ class ThinEngine:
                 return self.report(index + 1)
         raise RuntimeError('fixed point not reached; max_rounds exceeded')
 
+    def assessments(self) -> list[dict]:
+        records = []
+        for relation in self.rels:
+            target = self.dst(relation)
+            if self.assets.get(target, {}).get('type') != 'data_store':
+                continue
+            kind = self.reltype(relation)
+            if kind == 'hosts' and self.confirmed(relation):
+                status, reason = 'confirmed', '입력에 선언된 저장소 배치'
+            elif (kind == 'has_permission' and self.attr(relation, 'action') == 'write'
+                  and self.attr(relation, 'effect', 'allow') == 'allow'):
+                status, reason = 'unevaluated', '저장소 쓰기 권한의 개별 데이터 적용 범위 미정'
+            else:
+                continue
+            records.append(dict(status=status, subject=target, relation=kind,
+                                evidence=[self.rel_id(relation)], reason=reason))
+        for service, reach, host, via in sorted(self.exposure_evidence):
+            question = f'{via}의 전달 설정 확인' if via else '서비스 외부 노출 여부 확인'
+            records.append(dict(status='candidate', subject=service, rule='R10',
+                                evidence=[reach, host], question=question))
+        return records
+
     def report(self, rounds: int) -> dict:
-        return {'rounds': rounds, 'facts': [f.as_dict() for f in sorted(self.facts)],
+        return {'assessments': self.assessments(), 'rounds': rounds, 'facts': [f.as_dict() for f in sorted(self.facts)],
                 'derivations': [{'fact': f.as_dict(), 'alternatives': [d.as_dict() for d in sorted(self.proofs[f])]}
                                 for f in sorted(self.facts)],
                 'unresolved_candidates': sorted(self.blocked),
