@@ -53,3 +53,12 @@ def test_shop_hybrid_assessment_evidence():
     assert any(r['status'] == 'unevaluated' and '데이터' in r['reason']
                and r['evidence'] == [evidence('has_permission', 'role-backup', 'store-backup')]
                for r in records)
+
+    import hashlib
+    import json
+    encoded = json.dumps(ir, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    revision = hashlib.sha256(encoded.encode('utf-8')).hexdigest()
+    for record in records:
+        assert record['input_revision'] == revision
+        assert record['rule_version'] == 1
+        assert record['profile_ids'] == ([profile['id']] if record['rule'] == 'R10' else [])

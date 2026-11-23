@@ -60,6 +60,9 @@ class ThinEngine:
     def __init__(self, ir: Mapping[str, Any], *, knowledge: str = 'informed'):
         if knowledge not in {'informed', 'uninformed'}:
             raise ValueError('knowledge must be informed or uninformed')
+        self.profile_ids: set[str] = set()
+        encoded = json.dumps(ir, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str)
+        self.input_revision = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
         self.ir = ir
         self.knowledge = knowledge
         self.assets = {item_id(a['id']): a for a in ir.get('assets', [])}
@@ -150,6 +153,8 @@ class ThinEngine:
         for f in facts: self.add(f, Derivation('SEED'))
 
     def seed_profile(self, profile: Mapping[str, Any]) -> None:
+        if profile.get('id'):
+            self.profile_ids.add(item_id(profile['id']))
         priv = str(get(profile, 'initial_privilege', 'none'))
         for start in get(profile, 'start', []) or []:
             asset = item_id(start)
@@ -291,12 +296,15 @@ class ThinEngine:
                 status, reason = 'unevaluated', '저장소 쓰기 권한의 개별 데이터 적용 범위 미정'
             else:
                 continue
-            records.append(dict(status=status, subject=target, relation=kind,
+            records.append(dict(status=status, subject=target, relation=kind, rule=kind,
                                 evidence=[self.rel_id(relation)], reason=reason))
         for service, reach, host, via in sorted(self.exposure_evidence):
             question = f'{via}의 전달 설정 확인' if via else '서비스 외부 노출 여부 확인'
             records.append(dict(status='candidate', subject=service, rule='R10',
                                 evidence=[reach, host], question=question))
+        for record in records:
+            record.update(rule_version=1, input_revision=self.input_revision,
+                          profile_ids=sorted(self.profile_ids) if record["rule"] == "R10" else [])
         return records
 
     def report(self, rounds: int) -> dict:
