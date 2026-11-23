@@ -1,0 +1,19 @@
+id: network-reach
+version: 1
+when:
+  all:
+  - fact:
+      kind: foothold
+      args:
+      - $origin
+      - $level
+  - relation:
+      type: reaches
+      from: $origin
+      to: $target
+then:
+  kind: candidate
+  subject: $target
+  question: 대상 범위와 포트·프로토콜·경유 조건이 실제 연결에 부합하는가?
+attack_ids: []
+prior: null

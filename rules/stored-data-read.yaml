@@ -1,0 +1,20 @@
+id: stored-data-read
+version: 1
+when:
+  all:
+  - relation:
+      type: has_permission
+      from: $principal
+      to: $store
+      action: read
+      effect: allow
+  - relation:
+      type: contains
+      from: $store
+      to: $data
+then:
+  kind: candidate
+  subject: $data
+  question: 저장소의 읽기 권한이 이 데이터에도 적용되며 암호화 조건을 충족하는가?
+attack_ids: []
+prior: null

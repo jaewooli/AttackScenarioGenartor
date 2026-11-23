@@ -1,0 +1,23 @@
+id: discovery-uninformed
+version: 1
+when:
+  all:
+  - fact:
+      kind: knows
+      args:
+      - $origin
+  - fact:
+      kind: foothold
+      args:
+      - $origin
+      - $level
+  - relation:
+      type: reaches
+      from: $origin
+      to: $target
+then:
+  kind: candidate
+  subject: $target
+  question: 시작점에서 이 연결 대상의 존재를 알아낼 근거가 있는가?
+attack_ids: []
+prior: null
