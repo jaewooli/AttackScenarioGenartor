@@ -1,0 +1,1337 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scengen.local/schema/ir/0.2",
+  "title": "Infra IR v0.2",
+  "description": "공격 시나리오 생성기 입력 IR. 상세 의미는 docs/ir-spec.md 참고.",
+  "type": "object",
+  "required": [
+    "ir_version",
+    "assets"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "ir_version": {
+      "const": "0.2"
+    },
+    "meta": {
+      "$ref": "#/$defs/meta"
+    },
+    "context": {
+      "$ref": "#/$defs/context"
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/group"
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/asset"
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relation"
+      }
+    },
+    "impact_goals": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/impact_goal"
+      }
+    },
+    "attacker_profiles": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/attacker_profile"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+    },
+    "ref": {
+      "description": "자산 id 또는 group:<그룹 id>",
+      "type": "string",
+      "pattern": "^(group:)?[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+    },
+    "source": {
+      "enum": [
+        "declared",
+        "inferred",
+        "assumed",
+        "unknown"
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "evidence": {
+      "type": "string"
+    },
+    "provenance": {
+      "description": "객체 단위 출처. 하위 필드가 따로 지정하지 않으면 이 값을 물려받는다.",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "attr_object": {
+      "type": "object",
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "value"
+          ]
+        },
+        {
+          "required": [
+            "source"
+          ]
+        }
+      ],
+      "properties": {
+        "value": {},
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        },
+        "distribution": {
+          "$ref": "#/$defs/distribution"
+        }
+      }
+    },
+    "distribution": {
+      "description": "값을 모를 때(assumed) 가능한 값의 분포. 스펙 3.1 참고.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "p"
+          ],
+          "properties": {
+            "kind": {
+              "const": "bernoulli"
+            },
+            "p": {
+              "$ref": "#/$defs/confidence"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "p"
+          ],
+          "properties": {
+            "kind": {
+              "const": "categorical"
+            },
+            "p": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "$ref": "#/$defs/confidence"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "a",
+            "b"
+          ],
+          "properties": {
+            "kind": {
+              "const": "beta"
+            },
+            "a": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "b": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "low",
+            "high"
+          ],
+          "properties": {
+            "kind": {
+              "const": "uniform"
+            },
+            "low": {
+              "type": "number"
+            },
+            "high": {
+              "type": "number"
+            }
+          }
+        }
+      ]
+    },
+    "config": {
+      "description": "보안 관련 설정. 키는 스펙 5.6의 설정 키 사전을 따른다. 값은 Attr.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/attr"
+      }
+    },
+    "attr": {
+      "description": "단순 값(declared, 1.0으로 간주) 또는 Attr 객체",
+      "anyOf": [
+        {
+          "type": [
+            "string",
+            "number",
+            "integer",
+            "boolean",
+            "null",
+            "array"
+          ]
+        },
+        {
+          "$ref": "#/$defs/attr_object"
+        }
+      ]
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "group": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/$defs/provenance"
+        }
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "vpc",
+            "vcn",
+            "subnet",
+            "vlan",
+            "network_segment",
+            "dmz",
+            "wireless",
+            "security_group",
+            "nsg",
+            "firewall_zone",
+            "directory_forest",
+            "directory_domain",
+            "directory_ou",
+            "cloud_account",
+            "k8s_cluster",
+            "k8s_namespace",
+            "other"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/id"
+        },
+        "cidr": {
+          "type": "string"
+        },
+        "fqdn": {
+          "type": "string"
+        },
+        "netbios": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "config": {
+          "$ref": "#/$defs/config"
+        }
+      }
+    },
+    "role": {
+      "enum": [
+        "web_server",
+        "app_server",
+        "db_server",
+        "file_server",
+        "directory_server",
+        "domain_controller",
+        "mail_server",
+        "jump_host",
+        "ci_cd",
+        "monitoring",
+        "backup",
+        "workstation",
+        "mobile_device",
+        "k8s_node",
+        "container",
+        "load_balancer",
+        "firewall",
+        "vpn_gateway",
+        "internet_gateway",
+        "nat_gateway",
+        "certificate_authority",
+        "identity_provider",
+        "key_management",
+        "plc",
+        "hmi",
+        "scada_server",
+        "other"
+      ]
+    },
+    "data_category": {
+      "enum": [
+        "personal",
+        "sensitive_personal",
+        "unique_identifier",
+        "pseudonymized",
+        "credit",
+        "payment",
+        "credential_material",
+        "source_code",
+        "financial",
+        "health",
+        "trade_secret",
+        "operational",
+        "public",
+        "purchase_history"
+      ]
+    },
+    "asset": {
+      "type": "object",
+      "required": [
+        "id",
+        "type"
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "enum": [
+            "host",
+            "service",
+            "software",
+            "identity",
+            "credential",
+            "data",
+            "data_store",
+            "business_service",
+            "network_device",
+            "external",
+            "policy"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/role"
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "criticality": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "crown_jewel"
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "config": {
+          "$ref": "#/$defs/config"
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/provenance"
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "host"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "os": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "family": {
+                    "$ref": "#/$defs/attr"
+                  },
+                  "version": {
+                    "$ref": "#/$defs/attr"
+                  },
+                  "source": {
+                    "$ref": "#/$defs/source"
+                  },
+                  "confidence": {
+                    "$ref": "#/$defs/confidence"
+                  },
+                  "evidence": {
+                    "$ref": "#/$defs/evidence"
+                  }
+                }
+              },
+              "ip": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "service",
+                  "network_device"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "product": {
+                "$ref": "#/$defs/attr"
+              },
+              "version": {
+                "$ref": "#/$defs/attr"
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535
+              },
+              "protocol": {
+                "enum": [
+                  "tcp",
+                  "udp",
+                  "icmp",
+                  "any"
+                ]
+              },
+              "kind": {
+                "enum": [
+                  "network_service",
+                  "web_app",
+                  "daemon",
+                  "scheduled_task",
+                  "managed_service"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "software"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "version": {
+                "$ref": "#/$defs/attr"
+              },
+              "ecosystem": {
+                "type": "string"
+              },
+              "usage": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/$defs/attr"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "identity"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "user",
+                  "group",
+                  "service_account",
+                  "managed_service_account",
+                  "cloud_role",
+                  "cloud_user",
+                  "k8s_service_account",
+                  "local_account"
+                ]
+              },
+              "scope": {
+                "enum": [
+                  "global",
+                  "domain_local",
+                  "universal"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "credential"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "password",
+                  "key",
+                  "token",
+                  "certificate",
+                  "hash",
+                  "other"
+                ]
+              },
+              "scope": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "data"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "categories": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/data_category"
+                    }
+                  },
+                  {
+                    "allOf": [
+                      {
+                        "$ref": "#/$defs/attr_object"
+                      },
+                      {
+                        "properties": {
+                          "value": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": {
+                              "$ref": "#/$defs/data_category"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "environment": {
+                "enum": [
+                  "prod",
+                  "staging",
+                  "test",
+                  "unknown"
+                ]
+              },
+              "volume": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "records": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              },
+              "regulations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "identifiers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "business_service"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "downtime_impact": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "external"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "trust_level": {
+                "enum": [
+                  "untrusted",
+                  "partner",
+                  "trusted"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "policy"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "directory_policy",
+                  "cloud_org_policy",
+                  "config_management",
+                  "other"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "action": {
+      "enum": [
+        "read",
+        "write",
+        "execute",
+        "reset_credential",
+        "add_member",
+        "modify_permissions",
+        "take_ownership",
+        "delegate",
+        "admin"
+      ]
+    },
+    "relation": {
+      "description": "관계. 관계 타입마다 허용 필드가 다르다 (스펙 6장 표).",
+      "type": "object",
+      "required": [
+        "type",
+        "from",
+        "to"
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "reaches",
+            "routes_via",
+            "runs",
+            "hosts",
+            "member_of",
+            "has_permission",
+            "authenticates_to",
+            "session",
+            "stores",
+            "grants",
+            "contains",
+            "trusts",
+            "depends_on",
+            "manages"
+          ]
+        },
+        "from": {
+          "$ref": "#/$defs/ref"
+        },
+        "to": {
+          "$ref": "#/$defs/ref"
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/provenance"
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "reaches"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "ports": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 65535
+                }
+              },
+              "protocol": {
+                "enum": [
+                  "tcp",
+                  "udp",
+                  "icmp",
+                  "any"
+                ]
+              },
+              "via": {
+                "$ref": "#/$defs/ref"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "runs"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "as": {
+                "$ref": "#/$defs/ref",
+                "description": "실행 계정 (identity)"
+              },
+              "privilege": {
+                "enum": [
+                  "system",
+                  "admin",
+                  "user",
+                  "restricted"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "has_permission"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "$ref": "#/$defs/action"
+              },
+              "effect": {
+                "enum": [
+                  "allow",
+                  "deny"
+                ]
+              },
+              "inherit": {
+                "type": "boolean"
+              },
+              "condition": {},
+              "native": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "authenticates_to"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "method": {
+                "type": "string"
+              },
+              "privilege": {
+                "enum": [
+                  "system",
+                  "admin",
+                  "user",
+                  "restricted"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "session"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "logon": {
+                "enum": [
+                  "interactive",
+                  "remote_interactive",
+                  "network",
+                  "service",
+                  "batch",
+                  "unknown"
+                ]
+              },
+              "frequency": {
+                "enum": [
+                  "persistent",
+                  "periodic",
+                  "occasional",
+                  "unknown"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "stores"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "location": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "contains"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "encrypted": {
+                "type": "boolean"
+              },
+              "key_ref": {
+                "$ref": "#/$defs/ref"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "trusts"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "direction": {
+                "enum": [
+                  "one_way",
+                  "bidirectional"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "hosts",
+                  "grants",
+                  "depends_on",
+                  "manages"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "kind": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "organization": {
+          "type": "object"
+        },
+        "known_state": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "fact"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "fact": {
+                "$ref": "#/$defs/condition_leaf"
+              },
+              "probability": {
+                "$ref": "#/$defs/confidence"
+              },
+              "source": {
+                "$ref": "#/$defs/source"
+              },
+              "evidence": {
+                "$ref": "#/$defs/evidence"
+              }
+            }
+          }
+        },
+        "defaults": {
+          "$ref": "#/$defs/config",
+          "description": "조직 전체 기본 설정. 키는 설정 키 사전(applies_to에 context 포함)을 따른다."
+        },
+        "analysis": {
+          "type": "object"
+        },
+        "scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "exclude": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ref"
+              }
+            }
+          }
+        },
+        "narrative": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "text"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "translated_to": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "condition_leaf": {
+      "description": "단일 상태 조건. 예: {exfiltrated: data-x}, {privilege: {asset: h1, level: admin}}",
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "propertyNames": {
+        "enum": [
+          "exfiltrated",
+          "tampered",
+          "destroyed",
+          "disrupted",
+          "misused",
+          "read",
+          "controls",
+          "privilege",
+          "has_credential",
+          "acts_as",
+          "knows"
+        ]
+      }
+    },
+    "condition": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "all"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "all": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/condition"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "any"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "any": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/condition"
+              }
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/condition_leaf"
+        }
+      ]
+    },
+    "impact_goal": {
+      "type": "object",
+      "required": [
+        "id",
+        "harm",
+        "condition"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "description": {
+          "type": "string"
+        },
+        "harm": {
+          "enum": [
+            "exfiltrate",
+            "tamper",
+            "destroy",
+            "disrupt",
+            "misuse"
+          ]
+        },
+        "cia": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "C",
+              "I",
+              "A"
+            ]
+          }
+        },
+        "condition": {
+          "$ref": "#/$defs/condition"
+        },
+        "impact": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "level": {
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ]
+            },
+            "amount": {
+              "type": "object",
+              "description": "금액 범위를 아는 경우",
+              "properties": {
+                "low": {
+                  "type": "number"
+                },
+                "high": {
+                  "type": "number"
+                },
+                "currency": {
+                  "type": "string"
+                }
+              }
+            },
+            "source": {
+              "$ref": "#/$defs/source"
+            },
+            "confidence": {
+              "$ref": "#/$defs/confidence"
+            },
+            "evidence": {
+              "$ref": "#/$defs/evidence"
+            }
+          }
+        }
+      }
+    },
+    "attacker_profile": {
+      "type": "object",
+      "required": [
+        "id",
+        "start"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "description": {
+          "type": "string"
+        },
+        "start": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/ref"
+          }
+        },
+        "capability": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "advanced"
+          ]
+        },
+        "initial_privilege": {
+          "enum": [
+            "none",
+            "restricted",
+            "user",
+            "admin",
+            "system"
+          ]
+        },
+        "knowledge": {
+          "description": "인프라 구조 지식 가정. 목록이면 각 값마다 분석 (attacker-state.md 6.1)",
+          "anyOf": [
+            {
+              "enum": [
+                "informed",
+                "uninformed"
+              ]
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "informed",
+                  "uninformed"
+                ]
+              }
+            }
+          ]
+        },
+        "egress": {
+          "description": "외부 경로 가정. 목록이면 각 값마다 분석 (attacker-state.md 6.2)",
+          "anyOf": [
+            {
+              "enum": [
+                "assumed_open",
+                "from_ir"
+              ]
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "assumed_open",
+                  "from_ir"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

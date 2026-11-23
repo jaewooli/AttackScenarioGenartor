@@ -1,0 +1,238 @@
+# MITRE ATT&CK 완화책 → IR 대조표 (원본)
+#
+# 질문: "이 완화책이 적용되어 있는지를 IR로 표현할 수 있는가?"
+# docs/mitigation-coverage.md 는 이 파일에서 생성한다 (scengen mitigations --markdown).
+#
+# initial: 2026-11-21 IR v0.2 기준 첫 대조 결과 (보강 전)
+# status : 현재 상태
+#   covered      표현 가능
+#   partial      표현 가능하지만 세밀도가 낮음 (limit에 표현 못 하는 부분을 적음)
+#   missing      표현 불가 → M0.5 통과 조건 위반
+#   out_of_scope 공격 단계의 성공 여부에 영향을 주지 않음 (reason 필수)
+# ir     : 표현하는 IR 요소. config:<설정 키> | relation:<관계 타입> | field:<스키마 필드 이름>
+
+attack_version: "20.1"
+
+mitigations:
+  M1013:  # Application Developer Guidance
+    initial: missing
+    status: covered
+    ir: [config:app.secure_development]
+    how: 자체 개발 서비스에 보안 개발 지침 적용 여부
+  M1015:  # Active Directory Configuration
+    initial: partial
+    status: covered
+    ir: [config:directory.hardening, config:auth.methods, config:transport.signing, relation:has_permission, relation:trusts]
+    how: 도메인 그룹의 보안 기준 적용 수준 + 개별 설정(인증 방식, 서명) + 위임·권한 엣지(delegate 행위) + 신뢰 관계
+  M1016:  # Vulnerability Scanning
+    initial: missing
+    status: covered
+    ir: [config:org.vulnerability_scanning, config:host.patch_currency, field:asset.service+network_device.version]
+    how: 조직의 점검 주기(버전 정보가 없을 때 사전분포에 영향) + 점검 결과인 패치 수준·버전
+  M1017:  # User Training
+    initial: missing
+    status: covered
+    ir: [config:org.user_training]
+    how: 조직 단위 보안 인식 교육 수준 (사용자 상호작용이 필요한 단계의 확률)
+  M1018:  # User Account Management
+    initial: missing
+    status: covered
+    ir: [config:account.enabled, config:account.dormant, relation:member_of, relation:has_permission]
+    how: 계정 활성/장기 미사용 상태 + 소속과 권한
+  M1019:  # Threat Intelligence Program
+    initial: missing
+    status: covered
+    ir: [config:org.threat_intel]
+    how: 조직 단위 위협 인텔리전스 운영 여부
+  M1020:  # SSL/TLS Inspection
+    initial: missing
+    status: covered
+    ir: [config:network.tls_inspection]
+    how: 네트워크 구간·경계 장비의 암호화 트래픽 검사
+  M1021:  # Restrict Web-Based Content
+    initial: missing
+    status: covered
+    ir: [config:network.web_filtering]
+    how: 네트워크 구간·경계 장비의 웹 콘텐츠 필터링
+  M1022:  # Restrict File and Directory Permissions
+    initial: covered
+    status: partial
+    ir: [relation:has_permission, relation:contains]
+    how: 데이터·저장소 단위 권한 엣지
+    limit: 개별 파일·디렉터리 단위 권한은 표현하지 않음 (데이터 노드 단위로 묶음). 세밀한 단위는 L3 범위
+  M1024:  # Restrict Registry Permissions
+    initial: missing
+    status: covered
+    ir: [config:host.registry_permissions_restricted]
+    how: 호스트 단위 시스템 설정 저장소 권한 제한 여부
+  M1025:  # Privileged Process Integrity
+    initial: missing
+    status: covered
+    ir: [config:host.privileged_process_protection]
+    how: 호스트 단위 권한 높은 프로세스 보호 여부
+  M1026:  # Privileged Account Management
+    initial: covered
+    status: covered
+    ir: [relation:has_permission, relation:member_of, relation:session, relation:runs]
+    how: 누가 관리자 권한을 갖는지(권한·소속) + 관리자 계정이 어디에 로그인해 있는지(세션) + 어떤 계정으로 서비스가 도는지
+  M1027:  # Password Policies
+    initial: missing
+    status: covered
+    ir: [config:auth.password_policy]
+    how: 계정·서비스·그룹·조직 단위 비밀번호 정책 강도
+  M1028:  # Operating System Configuration
+    initial: partial
+    status: covered
+    ir: [config:host.os_hardening, config:host.firewall, config:network.legacy_name_resolution]
+    how: 운영체제 보안 기준 적용 수준 + 개별 설정 키
+  M1029:  # Remote Data Storage
+    initial: partial
+    status: covered
+    ir: [config:logging.centralized, config:storage.offsite, relation:contains]
+    how: 로그 원격 보관 + 데이터 사본이 분리된 저장소에 있는지
+  M1030:  # Network Segmentation
+    initial: covered
+    status: covered
+    ir: [field:asset.groups, field:group.parent, relation:reaches]
+    how: 네트워크 그룹 계층과 그룹 단위 도달 규칙
+  M1031:  # Network Intrusion Prevention
+    initial: missing
+    status: covered
+    ir: [config:network.intrusion_prevention]
+    how: 네트워크 구간·경계 장비의 침입 차단
+  M1032:  # Multi-factor Authentication
+    initial: covered
+    status: covered
+    ir: [config:auth.mfa]
+    how: 계정·서비스·그룹·조직 단위 다중 인증
+  M1033:  # Limit Software Installation
+    initial: missing
+    status: covered
+    ir: [config:host.software_install_restricted]
+    how: 호스트 단위 설치 제한
+  M1034:  # Limit Hardware Installation
+    initial: missing
+    status: covered
+    ir: [config:host.removable_media_restricted]
+    how: 호스트 단위 이동식 장치 제한
+  M1035:  # Limit Access to Resource Over Network
+    initial: covered
+    status: covered
+    ir: [relation:reaches, relation:authenticates_to, relation:has_permission]
+    how: 네트워크 도달 규칙 + 접근 가능한 주체
+  M1036:  # Account Use Policies
+    initial: missing
+    status: covered
+    ir: [config:auth.lockout, relation:authenticates_to]
+    how: 잠금 정책 + 계정이 로그인할 수 있는 곳(엣지로 제한)
+  M1037:  # Filter Network Traffic
+    initial: covered
+    status: covered
+    ir: [relation:reaches, config:host.firewall]
+    how: 유입·내부·유출 방향의 도달 규칙(외부로 가는 reaches 포함) + 호스트 방화벽
+  M1038:  # Execution Prevention
+    initial: missing
+    status: covered
+    ir: [config:host.execution_control]
+    how: 허용 프로그램 실행 통제 수준
+  M1039:  # Environment Variable Permissions
+    initial: missing
+    status: covered
+    ir: [config:host.env_permissions_restricted]
+    how: 호스트 단위 환경 변수 변경 제한
+  M1040:  # Behavior Prevention on Endpoint
+    initial: missing
+    status: covered
+    ir: [config:host.behavior_prevention]
+    how: 호스트 단위 행위 기반 차단
+  M1041:  # Encrypt Sensitive Information
+    initial: covered
+    status: covered
+    ir: [field:relation.contains.encrypted, field:relation.contains.key_ref, config:transport.encryption]
+    how: 저장 데이터 암호화(키 위치 포함) + 전송 구간 암호화
+  M1042:  # Disable or Remove Feature or Program
+    initial: covered
+    status: covered
+    ir: [relation:runs, config:network.legacy_name_resolution, config:access.anonymous]
+    how: 서비스·소프트웨어 노드의 유무 + 기능별 설정 키
+  M1043:  # Credential Access Protection
+    initial: missing
+    status: covered
+    ir: [config:host.credential_protection]
+    how: 호스트 단위 자격증명 보호 기능
+  M1044:  # Restrict Library Loading
+    initial: missing
+    status: covered
+    ir: [config:host.library_loading_restricted]
+    how: 호스트 단위 라이브러리 로드 제한
+  M1045:  # Code Signing
+    initial: missing
+    status: covered
+    ir: [config:host.code_signing_enforced]
+    how: 호스트 단위 서명 코드만 실행
+  M1046:  # Boot Integrity
+    initial: missing
+    status: covered
+    ir: [config:host.boot_integrity]
+    how: 호스트 단위 부팅 무결성
+  M1047:  # Audit
+    initial: partial
+    status: covered
+    ir: [config:logging.audit, config:logging.centralized]
+    how: 감사 로그 수준 + 중앙 수집
+  M1048:  # Application Isolation and Sandboxing
+    initial: missing
+    status: covered
+    ir: [config:host.application_isolation]
+    how: 호스트·서비스 단위 격리
+  M1049:  # Antivirus/Antimalware
+    initial: covered
+    status: covered
+    ir: [config:host.endpoint_protection]
+    how: 호스트 단위 백신
+  M1050:  # Exploit Protection
+    initial: missing
+    status: covered
+    ir: [config:host.exploit_protection]
+    how: 호스트 단위 익스플로잇 방지
+  M1051:  # Update Software
+    initial: covered
+    status: covered
+    ir: [config:host.patch_currency, field:asset.service+network_device.version]
+    how: 패치 수준 + 서비스 버전
+  M1052:  # User Account Control
+    initial: missing
+    status: covered
+    ir: [config:host.elevation_prompt]
+    how: 권한 상승 확인 절차 수준
+  M1053:  # Data Backup
+    initial: partial
+    status: covered
+    ir: [relation:contains, config:storage.immutable, config:storage.offsite]
+    how: 데이터 사본이 백업 저장소에 있는지 + 변경 불가·분리 보관 여부
+  M1054:  # Software Configuration
+    initial: covered
+    status: partial
+    ir: [field:asset.config, config:auth.methods, config:access.anonymous, config:transport.signing]
+    how: 서비스 단위 설정 키
+    limit: 제품별 세부 설정은 설정 키 사전에 있는 것만 표현됨. 규칙이 필요로 하는 키는 P2에서 추가
+  M1055:  # Do Not Mitigate
+    initial: out_of_scope
+    status: out_of_scope
+    ir: []
+    reason: 보안 조치가 아니라 "조치하지 말 것"을 알리는 분류
+  M1056:  # Pre-compromise
+    initial: missing
+    status: covered
+    ir: [config:org.attack_surface_management, field:attacker_profile.knowledge]
+    how: 외부 노출 관리 여부 + 공격자 사전 지식 변형(informed/uninformed)
+  M1057:  # Data Loss Prevention
+    initial: missing
+    status: covered
+    ir: [config:network.dlp, field:attacker_profile.egress]
+    how: 외부 전송 통제 + 유출 경로 변형(from_ir에서 반영)
+  M1060:  # Out-of-Band Communications Channel
+    initial: out_of_scope
+    status: out_of_scope
+    ir: []
+    reason: 사고 대응 중 의사소통 수단. 공격 단계의 성공 여부를 바꾸지 않음

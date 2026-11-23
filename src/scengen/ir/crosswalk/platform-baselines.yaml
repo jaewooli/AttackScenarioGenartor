@@ -1,0 +1,161 @@
+# 플랫폼 설정 기준 샘플 대조 (WBS 1.6.4)
+#
+# 질문: "개별 설정 키가 필요한 설정이 있는가?" (전수가 아니라 정해진 규칙으로 뽑은 샘플)
+# 판단: 개별 = 해당 설정을 직접 표현하는 키·관계가 있음
+#       묶음 = 묶음 키(os_hardening, logging.audit 등)로 충분. 공격 단계별로 따로 영향을 주지 않음
+#       추가 = 이번 대조에서 빠진 것을 발견해 IR에 추가함
+#       범위밖 = 공격 단계의 성공 여부를 바꾸지 않음
+# 요약(label)은 원문 번역이 아니라 이 프로젝트가 쓴 짧은 설명이다.
+
+reference: 플랫폼 설정 기준 (샘플)
+version: "2026-11-21"
+source: "아래 표본 규칙 참고"
+question: "개별 설정 키가 필요한 설정이 있는가?"
+extra_columns: [판단]
+notes:
+  - "표본 규칙 (재현 가능하도록 고정)"
+  - "  리눅스: DISA STIG Ubuntu 24.04 (ComplianceAsCode controls/stig_ubuntu2404.yml) 중 심각도 high(CAT I) 전부 16개"
+  - "  쿠버네티스: CIS Kubernetes Benchmark 1.9 (kube-bench cfg/cis-1.9/policies.yaml) 5장 정책 전부 35개. 원문은 CIS 라이선스라 번호와 자체 요약만 싣는다"
+  - "  AWS: Security Hub Foundational Security Best Practices 중 IAM, S3, EC2, KMS, EKS, Lambda, Secrets Manager, CloudTrail 통제 전부 69개"
+  - "확보 실패: CIS Benchmarks 원문(등록 필요), DISA Windows STIG(사이트에서 자동 내려받기 불가), KISA 주요정보통신기반시설 가이드(공식 PDF 링크 미확보). 윈도우·국내 기준은 원문을 받으면 같은 방식으로 추가한다"
+reasons:
+  물리: 콘솔·물리 접근 전제. 물리 접근은 공격자 시작점으로만 표현한다
+  탐지: 탐지·기록 무결성. 현재 모델 밖
+  가용성: 장애 대비·이중화. 공격 성공 여부와 무관
+  위생: 운영 정리 항목. 공격 경로를 바꾸지 않음
+findings:
+  - { gap: "비밀번호가 비어 있는 계정을 표현할 수 없음", fix: "config account.password_empty", items: ["linux:UBTU-24-300027", "linux:UBTU-24-300028"] }
+  - { gap: "컨테이너 보안 수준(Pod Security Standards 단계) 없음. 호스트 네임스페이스, root 실행, 권한 상승, 추가 권한(capability)을 하나로 묶는 표준 단계", fix: "config container.pod_security_level", items: ["k8s:5.2.3", "k8s:5.2.6", "k8s:5.2.7", "k8s:5.2.9"] }
+  - { gap: "공개 저장소의 읽기/쓰기 구분 불가 (access.anonymous 는 참/거짓뿐)", fix: "has_permission 의 출발 노드에 external 허용 (external → 저장소, read/write)", items: ["aws:S3.2", "aws:S3.3"] }
+  - { gap: "사용하지 않는 자격증명(접근 키 등)과 공개된 키를 표현할 수 없음", fix: "account.dormant, access.anonymous 의 applies_to 에 credential 추가", items: ["aws:IAM.8", "aws:KMS.5", "aws:SecretsManager.3"] }
+
+items:
+  # ================= 리눅스 (DISA STIG Ubuntu 24.04, CAT I)
+  "linux:UBTU-24-100030": { label: 평문 원격 접속 패키지 미설치, 판단: 개별, status: covered, ir: [relation:runs, config:transport.encryption] }
+  "linux:UBTU-24-100040": { label: 구식 원격 실행 서버 미설치, 판단: 개별, status: covered, ir: [relation:runs] }
+  "linux:UBTU-24-100050": { label: 파일 공유 서버 미설치, 판단: 개별, status: covered, ir: [relation:runs] }
+  "linux:UBTU-24-100800": { label: 암호화된 원격 접속 설치, 판단: 개별, status: covered, ir: [relation:runs, config:auth.methods] }
+  "linux:UBTU-24-100810": { label: 원격 접속 구간 암호화, 판단: 개별, status: covered, ir: [config:transport.encryption] }
+  "linux:UBTU-24-102000": { label: 단일 사용자 모드 진입 시 인증, 판단: 범위밖, status: out_of_scope, reason: 물리 }
+  "linux:UBTU-24-300022": { label: 원격 그래픽 연결 끄기, 판단: 개별, status: covered, ir: [relation:runs] }
+  "linux:UBTU-24-300025": { label: 그래픽 환경 재부팅 단축키 끄기, 판단: 범위밖, status: out_of_scope, reason: 물리 }
+  "linux:UBTU-24-300026": { label: 재부팅 단축키 끄기, 판단: 범위밖, status: out_of_scope, reason: 물리 }
+  "linux:UBTU-24-300027": { label: 빈 비밀번호 계정 금지, 판단: 추가, status: covered, ir: [config:account.password_empty] }
+  "linux:UBTU-24-300028": { label: 인증 모듈의 빈 비밀번호 허용 금지, 판단: 추가, status: covered, ir: [config:account.password_empty] }
+  "linux:UBTU-24-300031": { label: 원격 접속 자동 로그인 금지, 판단: 개별, status: covered, ir: [config:access.anonymous, relation:stores], how: 자동 로그인 = 인증 없는 접근 또는 저장된 자격증명 }
+  "linux:UBTU-24-400370": { label: 인증서 인증 시 계정 매핑, 판단: 묶음, status: covered, ir: [config:auth.methods] }
+  "linux:UBTU-24-600030": { label: 검증된 암호 모듈 사용, 판단: 묶음, status: covered, ir: [config:transport.encryption] }
+  "linux:UBTU-24-600130": { label: 관리자 권한 그룹 최소화, 판단: 개별, status: covered, ir: [relation:member_of, relation:has_permission] }
+  "linux:UBTU-24-700400": { label: 지원되는 배포판, 판단: 개별, status: covered, ir: [config:host.patch_currency] }
+
+  # ================= 쿠버네티스 (CIS Kubernetes 1.9, 5장)
+  "k8s:5.1.1": { label: 클러스터 관리자 역할 최소 사용, 판단: 개별, status: covered, ir: [relation:has_permission, relation:member_of] }
+  "k8s:5.1.2": { label: 비밀 정보 접근 최소화, 판단: 개별, status: covered, ir: [relation:has_permission], how: credential 에 대한 read }
+  "k8s:5.1.3": { label: 와일드카드 권한 최소화, 판단: 묶음, status: covered, ir: [relation:has_permission], how: 와일드카드는 어댑터가 펼쳐서 권한 엣지로 }
+  "k8s:5.1.4": { label: 파드 생성 권한 최소화, 판단: 개별, status: covered, ir: [relation:has_permission], how: 네임스페이스에 대한 execute }
+  "k8s:5.1.5": { label: 기본 서비스 계정 미사용, 판단: 개별, status: covered, ir: [relation:runs, field:asset.identity.kind] }
+  "k8s:5.1.6": { label: 서비스 계정 토큰은 필요한 곳에만, 판단: 개별, status: covered, ir: [config:container.service_account_token] }
+  "k8s:5.1.7": { label: 최상위 관리 그룹 미사용, 판단: 개별, status: covered, ir: [relation:member_of] }
+  "k8s:5.1.8": { label: 권한 연결·가장·상승 권한 제한, 판단: 개별, status: covered, ir: [relation:has_permission], how: delegate, modify_permissions }
+  "k8s:5.1.9": { label: 영구 볼륨 생성 권한 최소화, 판단: 개별, status: covered, ir: [relation:has_permission] }
+  "k8s:5.1.10": { label: 노드 프록시 권한 최소화, 판단: 개별, status: covered, ir: [relation:has_permission], how: 노드에 대한 execute }
+  "k8s:5.1.11": { label: 인증서 서명 요청 승인 권한 최소화, 판단: 개별, status: partial, ir: [relation:has_permission, relation:grants], limit: 인증서 발급 권한은 ATT&CK T1649와 같은 한계 (템플릿·발급 대상 단위는 근사) }
+  "k8s:5.1.12": { label: 웹훅 설정 접근 최소화, 판단: 개별, status: covered, ir: [relation:has_permission, field:asset.policy.kind], how: 승인 제어 웹훅 = 정책 객체 }
+  "k8s:5.1.13": { label: 서비스 계정 토큰 생성 권한 최소화, 판단: 개별, status: covered, ir: [relation:has_permission, relation:grants] }
+  "k8s:5.2.1": { label: 정책 통제 장치 적용, 판단: 개별, status: covered, ir: [field:asset.policy.kind, relation:manages] }
+  "k8s:5.2.2": { label: 특권 컨테이너 최소화, 판단: 개별, status: covered, ir: [config:container.privileged] }
+  "k8s:5.2.3": { label: 호스트 프로세스 공간 공유 최소화, 판단: 추가, status: covered, ir: [config:container.pod_security_level] }
+  "k8s:5.2.4": { label: 호스트 프로세스 간 통신 공유 최소화, 판단: 추가, status: covered, ir: [config:container.pod_security_level] }
+  "k8s:5.2.5": { label: 호스트 네트워크 공유 최소화, 판단: 추가, status: covered, ir: [config:container.pod_security_level] }
+  "k8s:5.2.6": { label: 권한 상승 허용 최소화, 판단: 추가, status: covered, ir: [config:container.pod_security_level] }
+  "k8s:5.2.7": { label: root 컨테이너 최소화, 판단: 추가, status: covered, ir: [config:container.pod_security_level] }
+  "k8s:5.2.8": { label: 원시 네트워크 권한 최소화, 판단: 추가, status: covered, ir: [config:container.pod_security_level] }
+  "k8s:5.2.9": { label: 추가 권한(capability) 최소화, 판단: 추가, status: covered, ir: [config:container.pod_security_level] }
+  "k8s:5.2.10": { label: 권한이 할당된 컨테이너 최소화, 판단: 추가, status: covered, ir: [config:container.pod_security_level] }
+  "k8s:5.2.11": { label: 윈도우 호스트 프로세스 컨테이너 최소화, 판단: 개별, status: covered, ir: [config:container.privileged] }
+  "k8s:5.2.12": { label: 호스트 경로 볼륨 최소화, 판단: 개별, status: covered, ir: [config:container.host_mounts] }
+  "k8s:5.2.13": { label: 호스트 포트 사용 최소화, 판단: 개별, status: covered, ir: [relation:reaches, config:container.pod_security_level] }
+  "k8s:5.3.1": { label: 네트워크 정책을 지원하는 네트워크 플러그인, 판단: 개별, status: covered, ir: [relation:reaches] }
+  "k8s:5.3.2": { label: 모든 네임스페이스에 네트워크 정책, 판단: 개별, status: covered, ir: [relation:reaches, field:group.kind] }
+  "k8s:5.4.1": { label: 비밀 정보는 환경 변수보다 파일로, 판단: 묶음, status: covered, ir: [relation:stores], how: stores.location }
+  "k8s:5.4.2": { label: 외부 비밀 저장소 사용, 판단: 개별, status: covered, ir: [relation:stores, field:asset.role], how: role key_management }
+  "k8s:5.5.1": { label: 이미지 출처 검증, 판단: 묶음, status: covered, ir: [config:host.code_signing_enforced] }
+  "k8s:5.7.1": { label: 네임스페이스로 관리 경계, 판단: 개별, status: covered, ir: [field:asset.groups, field:group.kind] }
+  "k8s:5.7.2": { label: 시스템 호출 제한 프로필, 판단: 묶음, status: covered, ir: [config:host.application_isolation] }
+  "k8s:5.7.3": { label: 보안 컨텍스트 적용, 판단: 추가, status: covered, ir: [config:container.pod_security_level] }
+  "k8s:5.7.4": { label: 기본 네임스페이스 미사용, 판단: 범위밖, status: out_of_scope, reason: 위생 }
+
+  # ================= AWS (Security Hub FSBP)
+  "aws:CloudTrail.1": { label: 전 리전 감사 기록, 판단: 개별, status: covered, ir: [config:logging.audit] }
+  "aws:CloudTrail.2": { label: 감사 기록 저장 암호화, 판단: 범위밖, status: out_of_scope, reason: 탐지 }
+  "aws:CloudTrail.4": { label: 감사 기록 무결성 검증, 판단: 범위밖, status: out_of_scope, reason: 탐지 }
+  "aws:CloudTrail.5": { label: 감사 기록 중앙 수집, 판단: 개별, status: covered, ir: [config:logging.centralized] }
+  "aws:EC2.1": { label: 디스크 스냅샷 공개 금지, 판단: 개별, status: covered, ir: [config:access.anonymous, relation:has_permission] }
+  "aws:EC2.2": { label: 기본 보안 그룹 트래픽 차단, 판단: 개별, status: covered, ir: [relation:reaches] }
+  "aws:EC2.3": { label: 연결된 디스크 암호화, 판단: 개별, status: covered, ir: [field:relation.contains.encrypted] }
+  "aws:EC2.4": { label: 중지된 인스턴스 정리, 판단: 범위밖, status: out_of_scope, reason: 위생 }
+  "aws:EC2.6": { label: 네트워크 흐름 기록, 판단: 범위밖, status: out_of_scope, reason: 탐지 }
+  "aws:EC2.7": { label: 디스크 기본 암호화, 판단: 개별, status: covered, ir: [field:relation.contains.encrypted] }
+  "aws:EC2.8": { label: 메타데이터 서비스 보호 버전 사용, 판단: 개별, status: covered, ir: [config:host.metadata_service_protection] }
+  "aws:EC2.9": { label: 인스턴스 공인 IP 금지, 판단: 개별, status: covered, ir: [relation:reaches], how: 외부에서 닿는 reaches }
+  "aws:EC2.10": { label: 서비스 전용 내부 경로 사용, 판단: 묶음, status: partial, ir: [relation:routes_via], limit: 클라우드 API로 가는 경로가 내부망인지 인터넷인지는 경유 노드로만 근사 }
+  "aws:EC2.15": { label: 서브넷 공인 IP 자동 할당 금지, 판단: 개별, status: covered, ir: [relation:reaches] }
+  "aws:EC2.16": { label: 사용하지 않는 네트워크 ACL 정리, 판단: 범위밖, status: out_of_scope, reason: 위생 }
+  "aws:EC2.17": { label: 다중 네트워크 인터페이스 금지, 판단: 개별, status: covered, ir: [field:asset.groups], how: 한 호스트가 여러 서브넷에 속함 }
+  "aws:EC2.18": { label: 허가된 포트만 전체 개방, 판단: 개별, status: covered, ir: [relation:reaches] }
+  "aws:EC2.19": { label: 위험 포트 전체 개방 금지, 판단: 개별, status: covered, ir: [relation:reaches] }
+  "aws:EC2.20": { label: VPN 터널 이중화, 판단: 범위밖, status: out_of_scope, reason: 가용성 }
+  "aws:EC2.21": { label: 원격 관리 포트 전체 개방 금지, 판단: 개별, status: covered, ir: [relation:reaches] }
+  "aws:EC2.23": { label: 네트워크 연결 자동 수락 금지, 판단: 개별, status: covered, ir: [relation:trusts, relation:routes_via] }
+  "aws:EC2.24": { label: 구형 가상화 유형 미사용, 판단: 범위밖, status: out_of_scope, reason: 위생 }
+  "aws:EC2.25": { label: 실행 템플릿 공인 IP 금지, 판단: 개별, status: covered, ir: [relation:reaches] }
+  "aws:EC2.51": { label: 클라이언트 VPN 접속 기록, 판단: 범위밖, status: out_of_scope, reason: 탐지 }
+  "aws:EC2.55": { label: 컨테이너 레지스트리 API 내부 경로, 판단: 묶음, status: partial, ir: [relation:routes_via], limit: EC2.10과 같음 }
+  "aws:EC2.56": { label: 컨테이너 레지스트리 내부 경로, 판단: 묶음, status: partial, ir: [relation:routes_via], limit: EC2.10과 같음 }
+  "aws:EC2.57": { label: 시스템 관리 서비스 내부 경로, 판단: 묶음, status: partial, ir: [relation:routes_via], limit: EC2.10과 같음 }
+  "aws:EC2.58": { label: 사고 관리 연락처 서비스 내부 경로, 판단: 범위밖, status: out_of_scope, reason: 가용성 }
+  "aws:EC2.60": { label: 사고 관리 서비스 내부 경로, 판단: 범위밖, status: out_of_scope, reason: 가용성 }
+  "aws:EC2.170": { label: 실행 템플릿 메타데이터 보호, 판단: 개별, status: covered, ir: [config:host.metadata_service_protection] }
+  "aws:EC2.171": { label: VPN 연결 기록, 판단: 범위밖, status: out_of_scope, reason: 탐지 }
+  "aws:EC2.172": { label: 네트워크 공개 접근 차단, 판단: 개별, status: covered, ir: [relation:reaches] }
+  "aws:EC2.173": { label: 스팟 요청 디스크 암호화, 판단: 개별, status: covered, ir: [field:relation.contains.encrypted] }
+  "aws:EC2.180": { label: 출발지·목적지 확인, 판단: 묶음, status: partial, ir: [relation:routes_via], limit: 인스턴스가 다른 주소로 위장해 트래픽을 중계하는 상황은 표현하지 않음 }
+  "aws:EC2.181": { label: 실행 템플릿 디스크 암호화, 판단: 개별, status: covered, ir: [field:relation.contains.encrypted] }
+  "aws:EC2.182": { label: 스냅샷 공개 접근 차단, 판단: 개별, status: covered, ir: [config:access.anonymous] }
+  "aws:EC2.183": { label: VPN 최신 키 교환 방식, 판단: 묶음, status: covered, ir: [config:transport.encryption] }
+  "aws:EKS.1": { label: 클러스터 관리 주소 비공개, 판단: 개별, status: covered, ir: [relation:reaches] }
+  "aws:EKS.2": { label: 지원되는 쿠버네티스 버전, 판단: 개별, status: covered, ir: [config:host.patch_currency] }
+  "aws:EKS.8": { label: 클러스터 감사 기록, 판단: 개별, status: covered, ir: [config:logging.audit] }
+  "aws:EKS.9": { label: 노드 그룹 지원 버전, 판단: 개별, status: covered, ir: [config:host.patch_currency] }
+  "aws:IAM.1": { label: 전체 관리자 정책 금지, 판단: 개별, status: covered, ir: [relation:has_permission], how: action admin }
+  "aws:IAM.2": { label: 사용자에게 정책 직접 연결 금지, 판단: 묶음, status: covered, ir: [relation:member_of, relation:has_permission] }
+  "aws:IAM.3": { label: 접근 키 주기 교체, 판단: 개별, status: covered, ir: [config:auth.credential_rotation] }
+  "aws:IAM.4": { label: 최상위 계정 접근 키 금지, 판단: 개별, status: covered, ir: [relation:grants], how: 최상위 계정을 grants 하는 키 credential 의 존재 }
+  "aws:IAM.5": { label: 콘솔 사용자 다중 인증, 판단: 개별, status: covered, ir: [config:auth.mfa] }
+  "aws:IAM.6": { label: 최상위 계정 하드웨어 다중 인증, 판단: 개별, status: covered, ir: [config:auth.mfa_strength] }
+  "aws:IAM.7": { label: 강한 비밀번호 정책, 판단: 개별, status: covered, ir: [config:auth.password_policy] }
+  "aws:IAM.8": { label: 사용하지 않는 자격증명 제거, 판단: 추가, status: covered, ir: [config:account.dormant] }
+  "aws:IAM.21": { label: 서비스 단위 와일드카드 권한 금지, 판단: 묶음, status: covered, ir: [relation:has_permission] }
+  "aws:KMS.1": { label: 모든 키 복호화 허용 정책 금지, 판단: 개별, status: covered, ir: [relation:has_permission], how: 키 credential 에 대한 read }
+  "aws:KMS.2": { label: 인라인 정책의 전체 복호화 금지, 판단: 개별, status: covered, ir: [relation:has_permission] }
+  "aws:KMS.3": { label: 키 의도치 않은 삭제 방지, 판단: 개별, status: covered, ir: [field:impact_goal.harm], how: 키 파괴 = destroy 목표 }
+  "aws:KMS.5": { label: 키 공개 접근 금지, 판단: 추가, status: covered, ir: [config:access.anonymous] }
+  "aws:Lambda.1": { label: 함수 공개 접근 금지, 판단: 개별, status: covered, ir: [config:access.anonymous] }
+  "aws:Lambda.2": { label: 지원되는 실행 환경, 판단: 개별, status: covered, ir: [config:host.patch_currency] }
+  "aws:Lambda.5": { label: 다중 가용 영역, 판단: 범위밖, status: out_of_scope, reason: 가용성 }
+  "aws:S3.1": { label: 저장소 공개 차단 설정, 판단: 개별, status: covered, ir: [config:access.anonymous] }
+  "aws:S3.2": { label: 저장소 공개 읽기 차단, 판단: 추가, status: covered, ir: [relation:has_permission], how: external → 저장소 read }
+  "aws:S3.3": { label: 저장소 공개 쓰기 차단, 판단: 추가, status: covered, ir: [relation:has_permission], how: external → 저장소 write }
+  "aws:S3.5": { label: 저장소 요청 암호화 강제, 판단: 개별, status: covered, ir: [config:transport.encryption] }
+  "aws:S3.6": { label: 다른 계정 접근 제한, 판단: 개별, status: covered, ir: [relation:has_permission, relation:trusts] }
+  "aws:S3.8": { label: 저장소 공개 접근 차단, 판단: 개별, status: covered, ir: [config:access.anonymous] }
+  "aws:S3.9": { label: 저장소 접근 기록, 판단: 개별, status: covered, ir: [config:logging.audit] }
+  "aws:S3.12": { label: 접근 제어 목록 대신 정책 사용, 판단: 묶음, status: covered, ir: [relation:has_permission] }
+  "aws:S3.13": { label: 저장소 수명 주기 설정, 판단: 묶음, status: partial, ir: [field:asset.data.volume], limit: 보존 기간은 데이터 양으로 근사 (CIS 3.4와 같음) }
+  "aws:S3.19": { label: 접근 지점 공개 차단, 판단: 개별, status: covered, ir: [config:access.anonymous] }
+  "aws:S3.24": { label: 다중 리전 접근 지점 공개 차단, 판단: 개별, status: covered, ir: [config:access.anonymous] }
+  "aws:S3.25": { label: 디렉터리 저장소 수명 주기, 판단: 묶음, status: partial, ir: [field:asset.data.volume], limit: S3.13과 같음 }
+  "aws:SecretsManager.1": { label: 비밀 자동 교체, 판단: 개별, status: covered, ir: [config:auth.credential_rotation] }
+  "aws:SecretsManager.2": { label: 자동 교체 성공, 판단: 개별, status: covered, ir: [config:auth.credential_rotation] }
+  "aws:SecretsManager.3": { label: 사용하지 않는 비밀 제거, 판단: 추가, status: covered, ir: [config:account.dormant] }
+  "aws:SecretsManager.4": { label: 정해진 기간 내 교체, 판단: 개별, status: covered, ir: [config:auth.credential_rotation] }

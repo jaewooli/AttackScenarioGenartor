@@ -1,0 +1,209 @@
+# CIS Critical Security Controls v8.1 → IR 대조표 (WBS 1.6.2)
+#
+# 라이선스 주의: CIS Controls는 CC BY-NC-ND 4.0이며 이용 약관이 원문 게시와 2차 저작을 제한한다.
+# 그래서 이 파일에는 세이프가드 번호와 보안 기능 분류(공식 카탈로그의 메타데이터)만 두고,
+# 이름(label)은 원문 번역이 아니라 이 프로젝트가 쓴 짧은 요약이다. 원문은 cisecurity.org에서 확인한다.
+#
+# 질문: "이 세이프가드가 적용되어 있는지를 IR로 표현할 수 있는가?"
+# status: covered | partial(limit) | missing | out_of_scope(reason 코드)
+# reason 코드: 절차 = 절차·거버넌스 (결과는 다른 IR 값으로 나타남)
+#              탐지 = 탐지·모니터링 (현재 모델 밖. 단조성·시간 없음)
+#              사후 = 사고 이후 대응·복구 (공격 단계의 성공 여부를 바꾸지 않음)
+
+reference: CIS Critical Security Controls
+version: "8.1.2"
+source: "CIS 공식 OSCAL 카탈로그 (bitbucket.org/cis-it-workspace/cis-controls-v8.1_oscal), 2026-11-21 확인"
+expected_count: 153
+question: "이 세이프가드가 적용되어 있는지를 IR로 표현할 수 있는가?"
+extra_columns: [fn]
+notes:
+  - "라이선스(CC BY-NC-ND 4.0) 때문에 원문 제목은 싣지 않는다. '요약'은 이 프로젝트가 쓴 짧은 설명이다."
+  - "세이프가드 번호 153개와 보안 기능(fn) 분류는 공식 OSCAL 카탈로그와 일치함을 2026-11-21에 확인했다."
+findings:
+  - { gap: "신뢰된 DNS 서버 사용 여부 없음", fix: "config network.trusted_dns", items: ["4.9"] }
+  - { gap: "자동 화면 잠금 없음", fix: "config host.session_lock", items: ["4.3"] }
+  - { gap: "휴대 단말을 표현할 역할 없음", fix: "role mobile_device", items: ["4.10", "4.12"] }
+  - { gap: "메일 발신 도메인 인증, 첨부·악성코드 필터링 없음", fix: "config mail.sender_authentication, mail.content_filtering", items: ["9.5", "9.6", "9.7"] }
+  - { gap: "포트 단위 접속 통제 없음", fix: "config network.port_access_control", items: ["13.9"] }
+  - { gap: "애플리케이션 계층 필터링(웹 방화벽) 없음", fix: "config network.application_filtering", items: ["13.10"] }
+  - { gap: "네트워크 장비에 다중 인증·인증 방식을 붙일 수 없음", fix: "auth.mfa, auth.methods 의 applies_to 에 network_device 추가", items: ["12.3"] }
+  - { gap: "서비스(애플리케이션) 단위 패치 수준을 붙일 수 없음", fix: "host.patch_currency 의 applies_to 에 service 추가", items: ["7.4"] }
+  - { gap: "단말(host)에 잠금 정책을 붙일 수 없었음 (대조표는 표현 가능이라 했지만 샘플에 써보니 붙일 곳이 없었음)", fix: "auth.lockout 의 applies_to 에 host 추가", items: ["4.10"] }
+  - { gap: "저장소에 감사 로그 수준을 붙일 수 없음", fix: "logging.audit 의 applies_to 에 data_store 추가", items: ["3.14"] }
+reasons:
+  절차: 절차·거버넌스 항목. 그 결과는 다른 IR 값(설정, 권한, 패치 수준 등)으로 나타난다
+  탐지: 탐지·모니터링 항목. 현재 모델은 탐지와 시간을 다루지 않는다
+  사후: 사고 이후 대응·복구 항목. 공격 단계의 성공 여부를 바꾸지 않는다
+
+items:
+  # 1 자산 목록
+  "1.1": { fn: identify, label: 기업 자산 목록 유지, status: covered, ir: [field:asset.role, field:asset.groups], how: IR 자체가 자산 목록 }
+  "1.2": { fn: respond, label: 미승인 자산 처리, status: out_of_scope, reason: 절차 }
+  "1.3": { fn: detect, label: 능동 자산 탐색 도구, status: out_of_scope, reason: 절차 }
+  "1.4": { fn: identify, label: DHCP 기록으로 목록 갱신, status: out_of_scope, reason: 절차 }
+  "1.5": { fn: detect, label: 수동 자산 탐색 도구, status: out_of_scope, reason: 절차 }
+  # 2 소프트웨어 목록
+  "2.1": { fn: identify, label: 소프트웨어 목록 유지, status: covered, ir: [relation:runs, field:asset.software.version] }
+  "2.2": { fn: identify, label: 지원되는 소프트웨어만 사용, status: covered, ir: [config:host.patch_currency], how: patch_currency=unsupported }
+  "2.3": { fn: respond, label: 미승인 소프트웨어 처리, status: out_of_scope, reason: 절차 }
+  "2.4": { fn: detect, label: 소프트웨어 목록 자동화 도구, status: out_of_scope, reason: 절차 }
+  "2.5": { fn: protect, label: 허용 소프트웨어 목록, status: covered, ir: [config:host.execution_control] }
+  "2.6": { fn: protect, label: 허용 라이브러리 목록, status: covered, ir: [config:host.library_loading_restricted] }
+  "2.7": { fn: protect, label: 허용 스크립트 목록, status: covered, ir: [config:host.execution_control] }
+  # 3 데이터 보호
+  "3.1": { fn: govern, label: 데이터 관리 절차, status: out_of_scope, reason: 절차 }
+  "3.2": { fn: identify, label: 데이터 목록 유지, status: covered, ir: [field:asset.data.categories, relation:contains] }
+  "3.3": { fn: protect, label: 데이터 접근 제어 목록, status: covered, ir: [relation:has_permission] }
+  "3.4": { fn: protect, label: 데이터 보존 기간 적용, status: partial, ir: [field:asset.data.volume], limit: 보존 기간 자체는 표현하지 않고 그 결과(남아 있는 데이터의 양)로 근사 }
+  "3.5": { fn: protect, label: 데이터 안전 폐기, status: covered, ir: [relation:contains], how: 폐기된 데이터는 IR에 없음 }
+  "3.6": { fn: protect, label: 사용자 단말 데이터 암호화, status: covered, ir: [field:relation.contains.encrypted] }
+  "3.7": { fn: identify, label: 데이터 분류 체계, status: covered, ir: [field:asset.data.categories] }
+  "3.8": { fn: identify, label: 데이터 흐름 문서화, status: partial, ir: [relation:depends_on, relation:contains], limit: 데이터가 시스템 사이를 이동하는 흐름은 의존 관계로만 근사 (데이터 흐름 엣지 없음) }
+  "3.9": { fn: protect, label: 이동식 매체 데이터 암호화, status: partial, ir: [config:host.removable_media_restricted], limit: 매체 암호화 여부 자체는 없고 매체 사용 제한으로 근사 }
+  "3.10": { fn: protect, label: 전송 중 민감 데이터 암호화, status: covered, ir: [config:transport.encryption] }
+  "3.11": { fn: protect, label: 저장된 민감 데이터 암호화, status: covered, ir: [field:relation.contains.encrypted, field:relation.contains.key_ref] }
+  "3.12": { fn: protect, label: 민감도에 따른 처리·저장 분리, status: covered, ir: [field:asset.groups, relation:reaches] }
+  "3.13": { fn: protect, label: 데이터 유출 방지 도구, status: covered, ir: [config:network.dlp] }
+  "3.14": { fn: detect, label: 민감 데이터 접근 기록, status: covered, ir: [config:logging.audit], how: 저장소에 logging.audit }
+  # 4 안전한 설정
+  "4.1": { fn: govern, label: 보안 설정 절차, status: out_of_scope, reason: 절차 }
+  "4.2": { fn: govern, label: 네트워크 장비 보안 설정 절차, status: out_of_scope, reason: 절차 }
+  "4.3": { fn: protect, label: 자동 세션 잠금, status: covered, ir: [config:host.session_lock] }
+  "4.4": { fn: protect, label: 서버 방화벽, status: covered, ir: [config:host.firewall] }
+  "4.5": { fn: protect, label: 사용자 단말 방화벽, status: covered, ir: [config:host.firewall] }
+  "4.6": { fn: protect, label: 자산·소프트웨어 안전 관리, status: covered, ir: [config:transport.encryption, config:auth.methods] }
+  "4.7": { fn: protect, label: 기본 계정 관리, status: covered, ir: [config:auth.default_credentials] }
+  "4.8": { fn: protect, label: 불필요 서비스 제거·비활성, status: covered, ir: [relation:runs], how: 서비스 노드의 유무 }
+  "4.9": { fn: protect, label: 신뢰된 DNS 서버 사용, status: covered, ir: [config:network.trusted_dns] }
+  "4.10": { fn: protect, label: 휴대 단말 자동 잠금, status: covered, ir: [config:auth.lockout, field:asset.role], how: role mobile_device }
+  "4.11": { fn: protect, label: 휴대 단말 원격 삭제, status: out_of_scope, reason: 사후 }
+  "4.12": { fn: protect, label: 휴대 단말 업무 공간 분리, status: covered, ir: [config:host.application_isolation] }
+  # 5 계정 관리
+  "5.1": { fn: identify, label: 계정 목록 유지, status: covered, ir: [field:asset.identity.kind] }
+  "5.2": { fn: protect, label: 계정마다 다른 비밀번호, status: covered, ir: [relation:grants, config:host.local_admin_shared], how: 한 자격증명이 여러 주체를 grants 하면 재사용 }
+  "5.3": { fn: protect, label: 휴면 계정 비활성화, status: covered, ir: [config:account.dormant, config:account.enabled] }
+  "5.4": { fn: protect, label: 관리자 권한은 전용 계정에만, status: covered, ir: [relation:has_permission, relation:session] }
+  "5.5": { fn: identify, label: 서비스 계정 목록, status: covered, ir: [field:asset.identity.kind, relation:runs] }
+  "5.6": { fn: govern, label: 계정 중앙 관리, status: covered, ir: [field:asset.identity.kind, field:asset.groups], how: 디렉터리 계정 vs 로컬 계정 }
+  # 6 접근 통제
+  "6.1": { fn: govern, label: 접근 권한 부여 절차, status: out_of_scope, reason: 절차 }
+  "6.2": { fn: govern, label: 접근 권한 회수 절차, status: out_of_scope, reason: 절차 }
+  "6.3": { fn: protect, label: 외부 노출 앱 다중 인증, status: covered, ir: [config:auth.mfa] }
+  "6.4": { fn: protect, label: 원격 접속 다중 인증, status: covered, ir: [config:auth.mfa] }
+  "6.5": { fn: protect, label: 관리자 접근 다중 인증, status: covered, ir: [config:auth.mfa] }
+  "6.6": { fn: identify, label: 인증·인가 시스템 목록, status: covered, ir: [field:asset.role], how: role identity_provider }
+  "6.7": { fn: protect, label: 접근 통제 중앙화, status: covered, ir: [field:asset.role, relation:trusts] }
+  "6.8": { fn: govern, label: 역할 기반 접근 통제, status: covered, ir: [relation:member_of, relation:has_permission] }
+  # 7 취약점 관리
+  "7.1": { fn: govern, label: 취약점 관리 절차, status: covered, ir: [config:org.vulnerability_scanning] }
+  "7.2": { fn: govern, label: 조치 절차, status: out_of_scope, reason: 절차 }
+  "7.3": { fn: protect, label: 운영체제 패치 자동화, status: covered, ir: [config:host.patch_currency] }
+  "7.4": { fn: protect, label: 애플리케이션 패치 자동화, status: covered, ir: [config:host.patch_currency, field:asset.service+network_device.version], how: 서비스에도 patch_currency }
+  "7.5": { fn: identify, label: 내부 자산 취약점 스캔, status: covered, ir: [config:org.vulnerability_scanning] }
+  "7.6": { fn: identify, label: 외부 노출 자산 취약점 스캔, status: covered, ir: [config:org.vulnerability_scanning] }
+  "7.7": { fn: respond, label: 발견된 취약점 조치, status: covered, ir: [config:host.patch_currency] }
+  # 8 감사 로그
+  "8.1": { fn: govern, label: 로그 관리 절차, status: out_of_scope, reason: 절차 }
+  "8.2": { fn: detect, label: 감사 로그 수집, status: covered, ir: [config:logging.audit] }
+  "8.3": { fn: protect, label: 로그 저장 공간 확보, status: out_of_scope, reason: 탐지 }
+  "8.4": { fn: protect, label: 시간 동기화, status: out_of_scope, reason: 탐지 }
+  "8.5": { fn: detect, label: 상세 감사 로그, status: covered, ir: [config:logging.audit], how: logging.audit=full }
+  "8.6": { fn: detect, label: DNS 질의 로그, status: partial, ir: [config:logging.audit], limit: 로그 종류(DNS, URL, 명령줄)는 구분하지 않고 수준으로만 표현 }
+  "8.7": { fn: detect, label: URL 요청 로그, status: partial, ir: [config:logging.audit], limit: 로그 종류 구분 없음 }
+  "8.8": { fn: detect, label: 명령줄 로그, status: partial, ir: [config:logging.audit], limit: 로그 종류 구분 없음 }
+  "8.9": { fn: detect, label: 로그 중앙화, status: covered, ir: [config:logging.centralized] }
+  "8.10": { fn: protect, label: 로그 보존, status: out_of_scope, reason: 탐지 }
+  "8.11": { fn: detect, label: 로그 검토, status: out_of_scope, reason: 탐지 }
+  "8.12": { fn: detect, label: 서비스 제공자 로그 수집, status: covered, ir: [config:logging.audit], how: 외부 서비스 노드에 logging.audit }
+  # 9 메일·브라우저
+  "9.1": { fn: protect, label: 지원되는 브라우저·메일 클라이언트만, status: covered, ir: [config:host.patch_currency] }
+  "9.2": { fn: protect, label: DNS 필터링, status: covered, ir: [config:network.web_filtering] }
+  "9.3": { fn: protect, label: URL 필터링, status: covered, ir: [config:network.web_filtering] }
+  "9.4": { fn: protect, label: 브라우저·메일 확장 제한, status: covered, ir: [config:host.software_install_restricted] }
+  "9.5": { fn: protect, label: 발신 도메인 인증, status: covered, ir: [config:mail.sender_authentication] }
+  "9.6": { fn: protect, label: 불필요한 파일 형식 차단, status: covered, ir: [config:mail.content_filtering] }
+  "9.7": { fn: protect, label: 메일 서버 악성코드 방지, status: covered, ir: [config:mail.content_filtering] }
+  # 10 악성코드 방어
+  "10.1": { fn: detect, label: 백신 배포·유지, status: covered, ir: [config:host.endpoint_protection] }
+  "10.2": { fn: protect, label: 백신 자동 업데이트, status: covered, ir: [config:host.endpoint_protection], how: endpoint_protection=true 는 최신 유지를 포함 }
+  "10.3": { fn: protect, label: 이동식 매체 자동 실행 끄기, status: covered, ir: [config:host.removable_media_restricted] }
+  "10.4": { fn: detect, label: 이동식 매체 자동 검사, status: covered, ir: [config:host.removable_media_restricted, config:host.endpoint_protection] }
+  "10.5": { fn: protect, label: 익스플로잇 방지 기능, status: covered, ir: [config:host.exploit_protection] }
+  "10.6": { fn: protect, label: 백신 중앙 관리, status: out_of_scope, reason: 절차 }
+  "10.7": { fn: detect, label: 행위 기반 악성코드 방지, status: covered, ir: [config:host.behavior_prevention] }
+  # 11 데이터 복구
+  "11.1": { fn: govern, label: 복구 절차, status: out_of_scope, reason: 절차 }
+  "11.2": { fn: recover, label: 자동 백업, status: covered, ir: [relation:contains], how: 백업 저장소가 데이터를 contains }
+  "11.3": { fn: protect, label: 복구 데이터 보호, status: covered, ir: [config:storage.immutable, field:relation.contains.encrypted] }
+  "11.4": { fn: recover, label: 격리된 복구 사본, status: covered, ir: [config:storage.offsite] }
+  "11.5": { fn: recover, label: 복구 시험, status: out_of_scope, reason: 사후 }
+  # 12 네트워크 인프라
+  "12.1": { fn: protect, label: 네트워크 장비 최신 유지, status: covered, ir: [config:host.patch_currency] }
+  "12.2": { fn: protect, label: 안전한 네트워크 구조, status: covered, ir: [field:asset.groups, field:group.parent, relation:reaches] }
+  "12.3": { fn: protect, label: 네트워크 장비 안전 관리, status: covered, ir: [config:auth.mfa, config:auth.methods, config:auth.default_credentials] }
+  "12.4": { fn: govern, label: 구성도 유지, status: covered, ir: [field:asset.groups, relation:reaches], how: IR 자체가 구성도 }
+  "12.5": { fn: protect, label: 네트워크 인증·인가·감사 중앙화, status: covered, ir: [field:asset.role, relation:authenticates_to] }
+  "12.6": { fn: protect, label: 안전한 관리 프로토콜, status: covered, ir: [config:transport.encryption] }
+  "12.7": { fn: protect, label: 원격 단말은 VPN과 중앙 인증 경유, status: covered, ir: [relation:reaches, field:asset.role, config:auth.mfa], how: role vpn_gateway 경유 reaches }
+  "12.8": { fn: protect, label: 관리 작업 전용 장비, status: covered, ir: [relation:session, field:asset.role], how: 관리자 세션이 전용 장비(jump_host)에만 있는지 }
+  # 13 네트워크 감시·방어
+  "13.1": { fn: detect, label: 보안 이벤트 경보 중앙화, status: out_of_scope, reason: 탐지 }
+  "13.2": { fn: detect, label: 호스트 침입 탐지, status: out_of_scope, reason: 탐지 }
+  "13.3": { fn: detect, label: 네트워크 침입 탐지, status: out_of_scope, reason: 탐지 }
+  "13.4": { fn: protect, label: 구간 간 트래픽 필터링, status: covered, ir: [relation:reaches] }
+  "13.5": { fn: protect, label: 원격 자산 접근 통제, status: covered, ir: [relation:reaches, relation:authenticates_to] }
+  "13.6": { fn: detect, label: 트래픽 흐름 기록, status: out_of_scope, reason: 탐지 }
+  "13.7": { fn: protect, label: 호스트 침입 차단, status: covered, ir: [config:host.behavior_prevention] }
+  "13.8": { fn: protect, label: 네트워크 침입 차단, status: covered, ir: [config:network.intrusion_prevention] }
+  "13.9": { fn: protect, label: 포트 단위 접속 통제, status: covered, ir: [config:network.port_access_control] }
+  "13.10": { fn: protect, label: 애플리케이션 계층 필터링, status: covered, ir: [config:network.application_filtering] }
+  "13.11": { fn: detect, label: 경보 임계값 조정, status: out_of_scope, reason: 탐지 }
+  # 14 보안 인식 교육
+  "14.1": { fn: govern, label: 보안 인식 프로그램, status: covered, ir: [config:org.user_training] }
+  "14.2": { fn: protect, label: 사회공학 인식 교육, status: covered, ir: [config:org.user_training] }
+  "14.3": { fn: protect, label: 인증 관련 교육, status: partial, ir: [config:org.user_training], limit: 교육 주제별 구분 없이 수준으로만 표현 }
+  "14.4": { fn: protect, label: 데이터 취급 교육, status: partial, ir: [config:org.user_training], limit: 주제 구분 없음 }
+  "14.5": { fn: protect, label: 의도치 않은 노출 교육, status: partial, ir: [config:org.user_training], limit: 주제 구분 없음 }
+  "14.6": { fn: protect, label: 사고 인지·보고 교육, status: out_of_scope, reason: 탐지 }
+  "14.7": { fn: protect, label: 보안 업데이트 누락 보고 교육, status: out_of_scope, reason: 절차 }
+  "14.8": { fn: protect, label: 안전하지 않은 네트워크 사용 교육, status: partial, ir: [config:org.user_training], limit: 주제 구분 없음 }
+  "14.9": { fn: protect, label: 역할별 교육, status: partial, ir: [config:org.user_training], limit: 역할별 교육 수준 구분 없음 (조직 단위) }
+  # 15 서비스 제공자
+  "15.1": { fn: identify, label: 서비스 제공자 목록, status: covered, ir: [field:asset.external.trust_level, relation:trusts] }
+  "15.2": { fn: govern, label: 제공자 관리 정책, status: out_of_scope, reason: 절차 }
+  "15.3": { fn: govern, label: 제공자 분류, status: covered, ir: [field:asset.external.trust_level] }
+  "15.4": { fn: govern, label: 계약에 보안 요구사항, status: out_of_scope, reason: 절차 }
+  "15.5": { fn: govern, label: 제공자 평가, status: out_of_scope, reason: 절차 }
+  "15.6": { fn: govern, label: 제공자 모니터링, status: out_of_scope, reason: 탐지 }
+  "15.7": { fn: protect, label: 제공자 연결 안전 해지, status: covered, ir: [relation:trusts, config:account.dormant], how: 해지 후 남은 신뢰·계정 }
+  # 16 애플리케이션 보안
+  "16.1": { fn: govern, label: 보안 개발 절차, status: covered, ir: [config:app.secure_development] }
+  "16.2": { fn: govern, label: 취약점 접수·처리 절차, status: out_of_scope, reason: 절차 }
+  "16.3": { fn: detect, label: 취약점 근본 원인 분석, status: out_of_scope, reason: 사후 }
+  "16.4": { fn: identify, label: 외부 구성요소 목록, status: covered, ir: [relation:runs, field:asset.software.version] }
+  "16.5": { fn: protect, label: 최신·신뢰 구성요소 사용, status: covered, ir: [field:asset.software.version] }
+  "16.6": { fn: govern, label: 앱 취약점 심각도 체계, status: out_of_scope, reason: 절차 }
+  "16.7": { fn: protect, label: 앱 인프라 표준 보안 설정, status: covered, ir: [config:host.os_hardening] }
+  "16.8": { fn: protect, label: 운영·비운영 분리, status: covered, ir: [field:asset.groups, field:asset.data.environment] }
+  "16.9": { fn: protect, label: 개발자 보안 교육, status: covered, ir: [config:app.secure_development] }
+  "16.10": { fn: protect, label: 보안 설계 원칙, status: covered, ir: [config:app.secure_development] }
+  "16.11": { fn: protect, label: 검증된 보안 모듈 사용, status: covered, ir: [config:app.secure_development] }
+  "16.12": { fn: protect, label: 코드 수준 보안 점검, status: covered, ir: [config:app.secure_development] }
+  "16.13": { fn: detect, label: 앱 침투 테스트, status: out_of_scope, reason: 절차 }
+  "16.14": { fn: protect, label: 위협 모델링, status: out_of_scope, reason: 절차 }
+  # 17 사고 대응
+  "17.1": { fn: respond, label: 사고 처리 담당자, status: out_of_scope, reason: 사후 }
+  "17.2": { fn: govern, label: 사고 보고 연락처, status: out_of_scope, reason: 사후 }
+  "17.3": { fn: govern, label: 사고 보고 절차, status: out_of_scope, reason: 사후 }
+  "17.4": { fn: govern, label: 사고 대응 절차, status: out_of_scope, reason: 사후 }
+  "17.5": { fn: respond, label: 역할과 책임 지정, status: out_of_scope, reason: 사후 }
+  "17.6": { fn: respond, label: 대응 중 의사소통 수단, status: out_of_scope, reason: 사후 }
+  "17.7": { fn: recover, label: 대응 훈련, status: out_of_scope, reason: 사후 }
+  "17.8": { fn: recover, label: 사후 검토, status: out_of_scope, reason: 사후 }
+  "17.9": { fn: recover, label: 사고 판단 기준, status: out_of_scope, reason: 사후 }
+  # 18 침투 테스트
+  "18.1": { fn: govern, label: 침투 테스트 프로그램, status: out_of_scope, reason: 절차 }
+  "18.2": { fn: detect, label: 외부 침투 테스트, status: out_of_scope, reason: 절차 }
+  "18.3": { fn: protect, label: 침투 테스트 결과 조치, status: out_of_scope, reason: 절차 }
+  "18.4": { fn: protect, label: 보안 조치 검증, status: out_of_scope, reason: 절차 }
+  "18.5": { fn: detect, label: 내부 침투 테스트, status: out_of_scope, reason: 절차 }

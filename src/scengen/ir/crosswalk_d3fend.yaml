@@ -1,0 +1,136 @@
+# MITRE D3FEND → IR 대조표 (WBS 1.6.3)
+#
+# 질문: "이 방어 기법이 적용되어 있는지를 IR로 표현할 수 있는가?"
+# - Model, Harden, Isolate 의 0·1단계 기법은 모두 개별 대조한다 (인프라 상태를 다루는 전술).
+# - Detect, Deceive, Evict, Restore 는 전술 기본값 (탐지·기만·사후 대응. 공격 성공 여부를 바꾸지 않음).
+# - 2단계 기법은 가장 가까운 상위 기법의 대조를 물려받는다.
+# status: covered | partial(limit) | missing | out_of_scope(reason)
+
+reference: MITRE D3FEND
+must_map_tactics: [Model, Harden, Isolate]
+
+reasons:
+  탐지: 탐지·분석 기법. 현재 모델은 탐지와 시간을 다루지 않는다
+  기만: 미끼 기법. 주목적이 탐지이며 현재 모델 밖
+  사후: 침입 이후 제거·복구 기법. 공격 단계의 성공 여부를 바꾸지 않는다
+  물리: 물리 환경(방사선, 외함, 출입) 보호. 물리 접근은 공격자 시작점으로만 표현한다
+
+findings:
+  - { gap: "생체 인증을 인증 방식으로 표현할 수 없음", fix: "auth.methods 에 biometric 추가", items: [D3-BAN] }
+  - { gap: "토큰을 기기·연결에 묶는 설정 없음", fix: "config auth.token_binding", items: [D3-TB] }
+  - { gap: "자격증명 주기적 교체 없음", fix: "config auth.credential_rotation", items: [D3-CRO] }
+  - { gap: "인증서 고정 없음", fix: "config transport.certificate_pinning", items: [D3-CP] }
+  - { gap: "산업 제어기의 운전 모드 잠금·변수 쓰기 제한 없음", fix: "config ot.operating_mode_locked, ot.variable_write_restricted", items: [D3-OPR, D3-OVAR] }
+
+defaults_by_tactic:
+  Detect: { status: out_of_scope, reason: 탐지 }
+  Deceive: { status: out_of_scope, reason: 기만 }
+  Evict: { status: out_of_scope, reason: 사후 }
+  Restore: { status: out_of_scope, reason: 사후 }
+
+items:
+  # ---------------- Model: IR 자체가 모델 (자산·관계·의존의 기록)
+  D3-OAM: { status: partial, ir: [field:context.organization, relation:depends_on], how: 조직 활동 지도, limit: 조직 활동·업무 절차는 업무 서비스와 의존 관계로만 근사 }
+  D3-OM: { status: covered, ir: [relation:member_of, field:asset.identity.kind], how: 사람·역할·그룹 }
+  D3-ORA: { status: covered, ir: [field:impact_goal.impact, field:asset.criticality], how: 위험 평가 결과가 곧 목표의 영향도 }
+  D3-ODM: { status: covered, ir: [relation:depends_on], how: 업무 의존 }
+  D3-AM: { status: covered, ir: [relation:has_permission, relation:authenticates_to], how: 접근 모델 }
+  D3-NM: { status: covered, ir: [field:asset.groups, relation:reaches], how: 네트워크 지도 }
+  D3-PLM: { status: partial, ir: [relation:reaches], how: 물리 연결, limit: 케이블·스위치 포트 단위 물리 연결은 표현하지 않고 논리 도달로 근사 }
+  D3-NVA: { status: covered, ir: [config:org.vulnerability_scanning, config:host.patch_currency] }
+  D3-NTPM: { status: covered, ir: [relation:reaches], how: 트래픽 정책 = 도달 규칙 }
+  D3-LLM: { status: covered, ir: [relation:reaches, relation:routes_via], how: 논리 연결 }
+  D3-AI: { status: covered, ir: [field:asset.role], how: IR 자체가 자산 목록 }
+  D3-SWI: { status: covered, ir: [relation:runs, field:asset.software.version] }
+  D3-NNI: { status: covered, ir: [field:asset.role, field:asset.groups], how: 네트워크 노드 }
+  D3-HCI: { status: partial, ir: [config:host.boot_integrity], how: 하드웨어 구성요소, limit: 하드웨어 부품 단위 목록은 표현하지 않음 (펌웨어 무결성만) }
+  D3-DI: { status: covered, ir: [field:asset.data.categories, relation:contains] }
+  D3-CI: { status: covered, ir: [field:asset.config], how: 설정 키 사전 }
+  D3-AVE: { status: covered, ir: [field:asset.service+network_device.version, config:host.patch_currency] }
+  D3-SYSM: { status: covered, ir: [relation:hosts, relation:runs, relation:depends_on] }
+  D3-SYSVA: { status: covered, ir: [config:host.patch_currency, config:host.os_hardening] }
+  D3-SYSDM: { status: covered, ir: [relation:depends_on] }
+  D3-SVCDM: { status: covered, ir: [relation:depends_on] }
+  D3-DEM: { status: partial, ir: [relation:depends_on, relation:contains], limit: 시스템 간 데이터 교환 흐름 엣지가 없음 (CIS 3.8과 같은 한계) }
+
+  # ---------------- Harden
+  D3-SCH: { status: covered, ir: [config:app.secure_development], how: 소스 코드 강화 (하위 기법은 코드 수준이라 묶음 키로 표현) }
+  D3-VTV: { status: covered, ir: [config:app.secure_development] }
+  D3-VI: { status: covered, ir: [config:app.secure_development] }
+  D3-TL: { status: covered, ir: [config:app.secure_development, field:asset.software.version] }
+  D3-RN: { status: covered, ir: [config:app.secure_development] }
+  D3-PV: { status: covered, ir: [config:app.secure_development] }
+  D3-IRV: { status: covered, ir: [config:app.secure_development] }
+  D3-DLV: { status: covered, ir: [config:app.secure_development] }
+  D3-CS: { status: covered, ir: [relation:stores], how: 코드·설정에서 자격증명 제거 = stores 관계 없음 }
+  D3-AA: { status: covered, ir: [config:auth.methods] }
+  D3-TBA: { status: covered, ir: [config:auth.methods] }
+  D3-PWA: { status: covered, ir: [config:auth.methods, config:auth.password_policy] }
+  D3-MFA: { status: covered, ir: [config:auth.mfa, config:auth.mfa_strength] }
+  D3-CBAN: { status: covered, ir: [config:auth.methods] }
+  D3-BAN: { status: covered, ir: [config:auth.methods], how: auth.methods 의 biometric }
+  D3-MH: { status: covered, ir: [config:transport.encryption, config:transport.signing] }
+  D3-TAAN: { status: covered, ir: [config:mail.sender_authentication] }
+  D3-MENCR: { status: covered, ir: [config:transport.encryption] }
+  D3-MAN: { status: covered, ir: [config:transport.signing] }
+  D3-CH: { status: covered, ir: [config:auth.password_policy, config:auth.credential_rotation] }
+  D3-TB: { status: covered, ir: [config:auth.token_binding] }
+  D3-SPP: { status: covered, ir: [config:auth.password_policy] }
+  D3-CRO: { status: covered, ir: [config:auth.credential_rotation] }
+  D3-CP: { status: covered, ir: [config:transport.certificate_pinning] }
+  D3-PH: { status: covered, ir: [config:host.os_hardening] }
+  D3-RH: { status: out_of_scope, reason: 물리 }
+  D3-DENCR: { status: covered, ir: [field:relation.contains.encrypted], how: 디스크 암호화 = 호스트가 담은 데이터의 암호화 }
+  D3-TBI: { status: covered, ir: [config:host.boot_integrity] }
+  D3-HBWP: { status: covered, ir: [config:host.boot_integrity] }
+  D3-BA: { status: covered, ir: [config:host.boot_integrity] }
+  D3-SCP: { status: covered, ir: [config:host.registry_permissions_restricted, relation:has_permission] }
+  D3-FE: { status: covered, ir: [field:relation.contains.encrypted] }
+  D3-SU: { status: covered, ir: [config:host.patch_currency] }
+  D3-DLIC: { status: covered, ir: [config:host.code_signing_enforced] }
+  D3-PEH: { status: out_of_scope, reason: 물리 }
+  D3-AH: { status: covered, ir: [config:host.exploit_protection, config:app.secure_development] }
+  D3-EHPV: { status: covered, ir: [config:host.exploit_protection], how: 메모리 보호 기법들은 묶음 키로 표현 }
+  D3-ACH: { status: covered, ir: [field:asset.config] }
+  D3-PAN: { status: covered, ir: [config:host.exploit_protection] }
+  D3-DCE: { status: covered, ir: [config:app.secure_development] }
+  D3-PSEP: { status: covered, ir: [config:host.exploit_protection] }
+  D3-SAOR: { status: covered, ir: [config:host.exploit_protection] }
+  D3-SFCV: { status: covered, ir: [config:host.exploit_protection] }
+  D3-CFI: { status: covered, ir: [config:host.exploit_protection] }
+
+  # ---------------- Isolate
+  D3-AMED: { status: covered, ir: [relation:has_permission, relation:reaches] }
+  D3-SCF: { status: covered, ir: [config:host.application_isolation] }
+  D3-PAM: { status: out_of_scope, reason: 물리 }
+  D3-OPR: { status: covered, ir: [config:ot.operating_mode_locked] }
+  D3-OVAR: { status: covered, ir: [config:ot.variable_write_restricted] }
+  D3-NRAM: { status: covered, ir: [relation:has_permission, relation:authenticates_to] }
+  D3-NAM: { status: covered, ir: [config:network.port_access_control, relation:reaches] }
+  D3-IOPR: { status: covered, ir: [config:host.removable_media_restricted] }
+  D3-CTS: { status: covered, ir: [relation:grants, field:asset.credential.scope], how: 자격증명이 통하는 범위 }
+  D3-CF: { status: covered, ir: [config:mail.content_filtering, config:network.application_filtering, config:network.web_filtering] }
+  D3-CV: { status: covered, ir: [config:network.application_filtering] }
+  D3-CQ: { status: covered, ir: [config:mail.content_filtering] }
+  D3-CM: { status: covered, ir: [config:mail.content_filtering] }
+  D3-EI: { status: covered, ir: [config:host.application_isolation, config:host.execution_control] }
+  D3-KBPI: { status: covered, ir: [config:host.application_isolation] }
+  D3-HBPI: { status: covered, ir: [config:host.application_isolation] }
+  D3-EDL: { status: covered, ir: [config:host.execution_control] }
+  D3-EAL: { status: covered, ir: [config:host.execution_control] }
+  D3-ABPI: { status: covered, ir: [config:host.application_isolation] }
+  D3-APA: { status: covered, ir: [relation:has_permission, relation:member_of] }
+  D3-UGPH: { status: covered, ir: [relation:has_permission, relation:member_of] }
+  D3-UAP: { status: covered, ir: [relation:has_permission] }
+  D3-LFP: { status: partial, ir: [relation:has_permission], limit: 파일 단위 권한은 데이터·서비스 노드 단위로 근사 (ATT&CK M1022와 같은 한계) }
+  D3-DTP: { status: covered, ir: [relation:trusts] }
+  D3-NI: { status: covered, ir: [relation:reaches, field:asset.groups] }
+  D3-NTF: { status: covered, ir: [relation:reaches, config:host.firewall] }
+  D3-ET: { status: covered, ir: [config:transport.encryption] }
+  D3-DNL: { status: covered, ir: [relation:reaches], how: 한 방향 도달 규칙 }
+  D3-DNSDL: { status: covered, ir: [config:network.web_filtering] }
+  D3-DNSAL: { status: covered, ir: [config:network.trusted_dns, config:network.web_filtering] }
+  D3-BDI: { status: covered, ir: [field:asset.groups, config:network.legacy_name_resolution] }
+
+  # ---------------- Evict 중 예방 효과가 있는 것
+  D3-AL: { status: covered, ir: [config:auth.lockout], how: 계정 잠금은 반복 시도를 막는 예방 효과도 있음 }

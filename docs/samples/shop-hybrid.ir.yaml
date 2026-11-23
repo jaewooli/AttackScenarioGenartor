@@ -1,0 +1,302 @@
+# 두 번째 샘플: 가상의 하이브리드 온라인 쇼핑몰 (WBS 1.5e)
+# 목적
+#   1. GOAD 샘플이 쓰지 않는 스펙 부분(데이터, 업무 서비스, 권한, 세션, 목표, 맥락, 출처 표시)을 실제로 써본다.
+#   2. ATT&CK 완화책 대조표의 "표현 가능"이 실제 IR 파일에서도 성립하는지 보인다.
+#      → 대조표에서 표현 가능으로 표시한 설정 키는 모두 이 파일 어딘가에 쓰여 있어야 한다 (tests/test_mitigations.py).
+# 전부 가상의 조직이다.
+
+ir_version: "0.2"
+meta:
+  name: "가상 쇼핑몰 (클라우드 웹 + 사내망)"
+  sources:
+    - { id: arch, kind: manual, note: "가상 아키텍처 설명" }
+    - { id: iac, kind: terraform, note: "가상" }
+
+context:
+  organization:
+    industry: ecommerce
+    priorities: { C: high, I: medium, A: high }
+    regulations: [PIPA]
+  defaults:
+    org.user_training: regular
+    org.vulnerability_scanning: continuous
+    org.threat_intel: true
+    org.attack_surface_management: true
+    logging.centralized: true
+    network.dlp: true
+    auth.password_policy: standard
+  narrative:
+    - text: "내년 상반기에 결제 대행사를 바꿀 예정"
+      translated_to: []
+
+groups:
+  - { id: cloud-acct, kind: cloud_account, name: "운영 클라우드 계정", config: { auth.mfa: true } }
+  - { id: vpc-prod, kind: vpc, parent: cloud-acct, cidr: "10.10.0.0/16", evidence: iac }
+  - { id: subnet-web, kind: subnet, parent: vpc-prod, cidr: "10.10.1.0/24", evidence: iac }
+  - { id: subnet-db, kind: subnet, parent: vpc-prod, cidr: "10.10.2.0/24", evidence: iac }
+  - { id: nsg-web, kind: security_group, evidence: iac }
+  - id: office
+    kind: network_segment
+    name: "사내망"
+    config:
+      network.web_filtering: true
+      network.intrusion_prevention: true
+      network.tls_inspection: true
+      network.legacy_name_resolution: false
+      network.trusted_dns: true
+      network.port_access_control: true
+      transport.signing: required
+  - id: dom-corp
+    kind: directory_domain
+    fqdn: corp.example
+    config:
+      directory.hardening: baseline
+      auth.lockout: true
+      auth.mfa_strength: push
+  - { id: wifi-guest, kind: wireless, name: "방문자 무선망" }
+  - id: k8s-prod
+    kind: k8s_cluster
+    parent: vpc-prod
+    config:
+      container.privileged: false
+      container.service_account_token: true
+      container.pod_security_level: baseline
+
+assets:
+  # ---------- 외부
+  - { id: ext-internet, type: external, trust_level: untrusted }
+  - id: saas-mail
+    type: service
+    kind: managed_service
+    name: "외부 메일·협업 SaaS"
+    config:
+      auth.mfa: true
+      auth.mfa_strength: phishing_resistant
+      auth.token_binding: true
+      network.ddos_protection: true
+      mail.sender_authentication: true
+      mail.content_filtering: true
+
+  # ---------- 컨테이너
+  - id: node-01
+    type: host
+    role: k8s_node
+    groups: [k8s-prod, subnet-web]
+    config:
+      host.metadata_service_protection: true
+  - id: pod-api
+    type: host
+    role: container
+    groups: [k8s-prod]
+    config:
+      container.host_mounts: false
+
+  # ---------- 정책
+  - id: pol-workstation
+    type: policy
+    kind: directory_policy
+    name: "업무용 PC 기본 정책"
+
+  # ---------- 클라우드
+  - id: lb-01
+    type: network_device
+    role: load_balancer
+    groups: [vpc-prod]
+    config:
+      network.intrusion_prevention: true
+      network.tls_inspection: true
+      host.patch_currency: current
+  - id: web-01
+    type: host
+    role: web_server
+    groups: [subnet-web, nsg-web]
+    os: { family: linux, source: declared, evidence: iac }
+    config:
+      host.patch_currency: { value: lagging, source: inferred, confidence: 0.6, evidence: "스캔 결과 추정" }
+      host.firewall: enabled
+  - id: svc-web
+    type: service
+    kind: web_app
+    product: { value: nginx, source: inferred, confidence: 0.8 }
+    version:
+      source: assumed
+      distribution: { kind: categorical, p: { "1.24": 0.5, "1.26": 0.5 } }
+    port: 443
+    protocol: tcp
+    config:
+      app.secure_development: true
+      network.application_filtering: true
+      transport.certificate_pinning: true
+      auth.methods: [oauth]
+      access.anonymous: true
+      transport.encryption: required
+      host.application_isolation: true
+  - id: db-01
+    type: host
+    role: db_server
+    groups: [subnet-db]
+    config:
+      host.os_hardening: baseline
+      logging.audit: full
+  - id: svc-db
+    type: service
+    kind: network_service
+    product: postgresql
+    port: 5432
+    protocol: tcp
+    config:
+      auth.methods: [password]
+      auth.password_policy: strong
+      auth.lockout: true
+      transport.encryption: required
+      auth.default_credentials: false
+  - { id: store-db, type: data_store, role: db_server, criticality: crown_jewel }
+  - id: store-backup
+    type: data_store
+    role: backup
+    groups: [cloud-acct]
+    config:
+      storage.immutable: true
+      storage.offsite: true
+      access.anonymous: false
+
+  # ---------- 데이터
+  - id: data-customer
+    type: data
+    description: "회원 이름, 연락처, 주소, 주문 내역"
+    categories: [personal, purchase_history]
+    environment: prod
+    volume: { records: 800000 }
+    regulations: [PIPA]
+    identifiers: [customer_id, phone]
+  - id: data-payment
+    type: data
+    description: "결제 토큰"
+    categories: [payment]
+    environment: prod
+    identifiers: [customer_id]
+
+  # ---------- 업무 서비스
+  - { id: biz-shop, type: business_service, description: "온라인 주문·결제", downtime_impact: { per_hour: high } }
+
+  # ---------- 사내망
+  - id: ws-01
+    type: host
+    role: workstation
+    groups: [office, dom-corp]
+    os: { family: windows }
+    config:
+      host.firewall: enabled
+      host.patch_currency: current
+      host.endpoint_protection: true
+      host.behavior_prevention: true
+      host.os_hardening: baseline
+      host.registry_permissions_restricted: true
+      host.env_permissions_restricted: true
+      host.privileged_process_protection: true
+      host.credential_protection: true
+      host.execution_control: enforce
+      host.software_install_restricted: true
+      host.removable_media_restricted: true
+      host.library_loading_restricted: true
+      host.code_signing_enforced: true
+      host.boot_integrity: true
+      host.exploit_protection: true
+      host.elevation_prompt: strict
+      host.session_lock: true
+      host.local_admin_shared: false
+      logging.audit: full
+  - id: dc-01
+    type: host
+    role: domain_controller
+    groups: [office, dom-corp]
+    os: { family: windows }
+    criticality: high
+
+  - id: plc-01
+    type: host
+    role: plc
+    name: "물류센터 컨베이어 제어기"
+    groups: [office]
+    config:
+      ot.operating_mode_locked: true
+      ot.variable_write_restricted: true
+  - id: mobile-01
+    type: host
+    role: mobile_device
+    name: "배송 기사용 단말"
+    config:
+      auth.lockout: true
+      host.application_isolation: true
+  - { id: store-public, type: data_store, role: other, name: "상품 이미지 저장소", groups: [cloud-acct], config: { access.anonymous: true } }
+  - { id: data-product-images, type: data, categories: [public], environment: prod }
+
+  # ---------- 주체와 자격증명
+  - { id: u-admin, type: identity, kind: user, groups: [dom-corp], config: { auth.mfa: true, auth.password_policy: strong } }
+  - { id: u-staff, type: identity, kind: user, groups: [dom-corp], config: { account.enabled: true } }
+  - { id: u-old, type: identity, kind: user, groups: [dom-corp], config: { account.enabled: false, account.dormant: true, account.password_empty: false } }
+  - { id: g-dbadmins, type: identity, kind: group, groups: [dom-corp] }
+  - { id: sa-db, type: identity, kind: service_account, config: { account.service_principal: true, account.kerberos_preauth: true } }
+  - { id: role-backup, type: identity, kind: cloud_role, groups: [cloud-acct] }
+  - { id: cred-backup-api, type: credential, kind: token, config: { auth.credential_rotation: periodic, account.dormant: false } }
+  - { id: key-backup, type: credential, kind: key }
+
+relations:
+  # 네트워크 (유입, 내부, 유출)
+  - { type: reaches, from: ext-internet, to: "group:nsg-web", ports: [443], protocol: tcp, via: lb-01, evidence: iac }
+  - { type: reaches, from: "group:subnet-web", to: "group:subnet-db", ports: [5432], protocol: tcp, evidence: iac }
+  - { type: reaches, from: "group:vpc-prod", to: ext-internet, ports: [443], protocol: tcp, evidence: iac }
+  - { type: reaches, from: "group:office", to: "group:subnet-db", ports: [5432], source: assumed, confidence: 0.3,
+      note: "사내망에서 DB 직접 접속 여부 미확인" }
+
+  # 실행
+  - { type: runs, from: web-01, to: svc-web }
+  - { type: runs, from: db-01, to: svc-db, as: sa-db, privilege: user }
+  - { type: hosts, from: db-01, to: store-db }
+  - { type: contains, from: store-db, to: data-customer }
+  - { type: contains, from: store-db, to: data-payment }
+  - { type: contains, from: store-backup, to: data-customer, encrypted: true, key_ref: key-backup }
+
+  # 주체, 권한, 세션
+  - { type: member_of, from: u-admin, to: g-dbadmins }
+  - { type: has_permission, from: g-dbadmins, to: store-db, action: admin, effect: allow }
+  - { type: has_permission, from: role-backup, to: store-backup, action: write, effect: allow }
+  - { type: authenticates_to, from: u-staff, to: ws-01, privilege: user }
+  - { type: authenticates_to, from: u-admin, to: dc-01, privilege: admin }
+  - { type: session, from: u-staff, to: ws-01, logon: interactive, frequency: persistent }
+  - { type: session, from: u-admin, to: dc-01, logon: remote_interactive, frequency: periodic }
+  - { type: stores, from: web-01, to: cred-backup-api, location: "애플리케이션 설정 파일" }
+  - { type: grants, from: cred-backup-api, to: role-backup }
+  - { type: manages, from: dc-01, to: "group:dom-corp", kind: domain_controller_of }
+  - { type: manages, from: pol-workstation, to: ws-01, kind: applies_to }
+  - { type: has_permission, from: u-admin, to: pol-workstation, action: write, effect: allow }
+  - { type: session, from: u-staff, to: saas-mail, logon: network, frequency: persistent }
+  - { type: hosts, from: node-01, to: pod-api }
+  - { type: reaches, from: "group:wifi-guest", to: ext-internet, ports: [443] }
+
+  - { type: contains, from: store-public, to: data-product-images }
+  - { type: has_permission, from: ext-internet, to: store-public, action: read, effect: allow, note: "공개 읽기" }
+
+  # 업무 의존
+  - { type: depends_on, from: biz-shop, to: svc-web }
+  - { type: depends_on, from: biz-shop, to: svc-db }
+  - { type: depends_on, from: biz-shop, to: lb-01 }
+
+impact_goals:
+  - id: goal-customer-exfil
+    harm: exfiltrate
+    condition: { exfiltrated: data-customer }
+    impact: { level: high, source: declared }
+  - id: goal-combined-exfil
+    harm: exfiltrate
+    description: "회원 정보와 결제 토큰을 함께 유출"
+    condition: { all: [ { exfiltrated: data-customer }, { exfiltrated: data-payment } ] }
+    impact: { level: critical, source: declared }
+  - id: goal-shop-down
+    harm: disrupt
+    condition: { disrupted: biz-shop }
+    impact: { level: high, source: assumed, confidence: 0.7 }
+
+attacker_profiles:
+  - { id: external, start: [ext-internet], capability: medium }
+  - { id: insider, start: [ws-01], initial_privilege: user, knowledge: informed }

@@ -1,0 +1,177 @@
+# MITRE ATT&CK 공격 기법(상위 기법) → IR 대조표 (WBS 1.6.1)
+#
+# 질문: "이 기법이 가능하려면 필요한 인프라 상태를 IR로 표현할 수 있는가?"
+# 추상 수준만 다룬다: 전제가 되는 인프라 상태만 적고, 실행 방법은 적지 않는다 (CLAUDE.md 5장).
+#
+# role
+#   transition    공격자 상태(attacker-state.md)를 바꿈 → 규칙의 대상. ir 필수
+#   goal          피해를 냄 (영향 목표) → ir 필수
+#   discovery     정보를 얻음 → uninformed 변형의 knows
+#   in_foothold   이미 가진 거점 안에서의 행위. 거점 외의 인프라 조건 없음
+#   state_neutral 단조성 모델에서 공격자 상태를 바꾸지 않음 (지속, 은닉, 방어 무력화, 통신)
+#   pre           공격 전 단계 (정찰, 자원 준비)
+# status: covered | partial(limit 필수) | missing | out_of_scope(reason 필수)
+# ir: config:<키> | relation:<타입> | field:<스키마 필드>
+#
+# 명시하지 않은 기법은 defaults_by_tactic 의 첫 번째 일치 전술로 분류한다.
+
+attack_version: "20.1"
+
+# 대조 중 발견해서 IR을 보강한 것 (2026-11-21). 보강 전에는 아래 기법들이 표현 불가였다.
+findings:
+  - { gap: "여러 자산에 한꺼번에 적용되는 정책 객체가 없음", fix: "asset type policy + manages(정책 → 적용 대상)", techniques: [T1484, T1037] }
+  - { gap: "웹·SaaS 서비스 세션을 표현할 수 없음 (세션이 서버에만 붙음)", fix: "session 도착 노드에 service 허용", techniques: [T1185, T1539] }
+  - { gap: "다중 인증 방식의 강도 구분 없음", fix: "config auth.mfa_strength", techniques: [T1111, T1621] }
+  - { gap: "클라우드 저장소 공개 여부를 표현할 수 없음", fix: "access.anonymous 를 data_store 에도 허용", techniques: [T1530] }
+  - { gap: "클라우드 메타데이터 서비스 보호 설정 없음", fix: "config host.metadata_service_protection", techniques: [T1552] }
+  - { gap: "Kerberos 관련 계정 속성 없음", fix: "config account.service_principal, account.kerberos_preauth", techniques: [T1558] }
+  - { gap: "컨테이너 설정 없음", fix: "config container.privileged, container.host_mounts, container.service_account_token", techniques: [T1611] }
+  - { gap: "무선 네트워크 구간을 표현할 수 없음", fix: "group kind wireless", techniques: [T1669] }
+  - { gap: "대규모 트래픽 방어 설정 없음", fix: "config network.ddos_protection", techniques: [T1498, T1499] }
+  - { gap: "방어 무력화 상태를 공격자 상태로 표현할 수 없음 (IR이 아니라 공격자 상태 모델의 빈틈)", fix: "P2에서 결정 (attacker-state.md 후보)", techniques: [] }
+
+defaults_by_tactic:
+  - tactic: discovery
+    role: discovery
+    status: covered
+    ir: [field:attacker_profile.knowledge]
+    how: 거점에서 닿는 범위의 정보를 얻음. uninformed 변형에서 knows 사실로 반영
+  - tactic: execution
+    role: in_foothold
+    status: covered
+    ir: [relation:runs]
+    how: 거점 안에서 코드를 실행하는 수단. 원격 실행은 원격 서비스(T1021)와 같은 조건(도달 + 로그인 가능)
+  - tactic: persistence
+    role: state_neutral
+    status: covered
+    ir: []
+    how: 단조성 가정상 이미 얻은 상태를 유지하는 행위는 상태를 바꾸지 않음. 시간·탐지 모델이 생기면 다시 봄
+  - tactic: stealth
+    role: state_neutral
+    status: covered
+    ir: []
+    how: 탐지를 피하는 행위. 탐지는 현재 모델 밖
+  - tactic: defense-impairment
+    role: state_neutral
+    status: covered
+    ir: []
+    how: 방어를 끄는 행위. 방어 설정 자체는 IR에 있으나, "방어를 무력화한 상태"는 공격자 상태 후보 (P2에서 결정)
+  - tactic: command-and-control
+    role: state_neutral
+    status: covered
+    ir: [relation:reaches]
+    how: 외부와의 통신 경로. 외부로 닿는 reaches로 표현 (egress 변형과 같은 조건)
+  - tactic: reconnaissance
+    role: pre
+    status: covered
+    ir: [field:attacker_profile.knowledge, config:org.attack_surface_management]
+    how: 공격 전 정보 수집. 지식 변형과 외부 노출 관리 키로 표현
+  - tactic: resource-development
+    role: pre
+    status: out_of_scope
+    ir: []
+    reason: 공격자 쪽 준비 행위. 대상 인프라 상태와 무관
+
+techniques:
+  # ---------------- 초기 침투
+  T1078: { role: transition, status: covered, ir: [relation:authenticates_to, relation:grants, config:account.dormant, config:auth.mfa], how: 유효한 계정으로 로그인 }
+  T1133: { role: transition, status: covered, ir: [relation:reaches, relation:authenticates_to, config:auth.mfa, field:asset.role], how: 외부에서 닿는 원격 접속 서비스(VPN 등) }
+  T1190: { role: transition, status: covered, ir: [relation:reaches, field:asset.service+network_device.version, config:app.secure_development, config:host.patch_currency], how: 외부에서 닿는 서비스의 취약점 }
+  T1189: { role: transition, status: covered, ir: [relation:reaches, config:network.web_filtering, config:host.exploit_protection, config:org.user_training], how: 사용자 단말의 웹 접속 }
+  T1566: { role: transition, status: covered, ir: [config:org.user_training, config:network.web_filtering, relation:session, field:asset.role], how: 사용자 단말·메일 서비스 + 사용자 교육 }
+  T1195: { role: transition, status: partial, ir: [relation:manages, relation:depends_on, relation:trusts, field:asset.software.version], how: 공급자·배포 경로, limit: 외부 공급자 내부의 상태는 표현 대상 밖. 공급 경로(관리·의존 관계)까지만 }
+  T1199: { role: transition, status: covered, ir: [relation:trusts, relation:reaches, relation:authenticates_to, field:asset.external.trust_level], how: 협력사 연결과 신뢰 관계 }
+  T1200: { role: transition, status: covered, ir: [field:attacker_profile.start, config:host.removable_media_restricted], how: 물리 접근은 공격자 시작점을 해당 구간으로 두어 표현 }
+  T1091: { role: transition, status: covered, ir: [config:host.removable_media_restricted, field:attacker_profile.start], how: 이동식 매체 }
+  T1659: { role: transition, status: partial, ir: [relation:reaches, config:transport.encryption], how: 통신 경로 중간 위치, limit: 공격자가 경로 중간(통신사 등)에 있는 상황은 시작점으로만 근사 }
+  T1669: { role: transition, status: covered, ir: [field:group.kind, relation:reaches, field:attacker_profile.start], how: 무선 구간(group kind wireless)과 그 구간의 도달 규칙 }
+
+  # ---------------- 권한 상승
+  T1068: { role: transition, status: covered, ir: [config:host.patch_currency, field:asset.host.os, config:host.exploit_protection], how: 호스트 취약점 }
+  T1548: { role: transition, status: covered, ir: [config:host.elevation_prompt], how: 권한 상승 확인 절차 }
+  T1134: { role: transition, status: covered, ir: [relation:session, relation:runs, config:host.privileged_process_protection], how: 같은 호스트의 다른 주체 세션·프로세스 }
+  T1055: { role: transition, status: covered, ir: [relation:runs, config:host.privileged_process_protection, config:host.behavior_prevention], how: 다른 계정으로 도는 프로세스 }
+  T1053: { role: transition, status: covered, ir: [relation:runs, relation:has_permission, field:asset.service+network_device.kind], how: 예약 작업(kind scheduled_task) + 실행 계정 + 수정 권한 }
+  T1543: { role: transition, status: covered, ir: [relation:runs, relation:has_permission], how: 시스템 서비스 + 실행 계정 + 수정 권한 }
+  T1037: { role: transition, status: covered, ir: [field:asset.policy.kind, relation:manages, relation:has_permission], how: 로그온 스크립트를 배포하는 정책 객체 + 수정 권한 }
+  T1546: { role: transition, status: partial, ir: [relation:runs, relation:has_permission], how: 다른 계정으로 실행되는 이벤트 트리거, limit: 개별 트리거 설정은 표현하지 않음 (실행 계정과 수정 권한으로 근사) }
+  T1547: { role: transition, status: partial, ir: [relation:runs, relation:session, relation:has_permission], how: 다른 사용자의 로그온 시 실행, limit: 자동 실행 위치 단위는 표현하지 않음 (세션 + 수정 권한으로 근사) }
+  T1098: { role: transition, status: covered, ir: [relation:has_permission], how: 계정 변경 권한 (reset_credential, add_member, modify_permissions) }
+  T1484: { role: transition, status: covered, ir: [field:asset.policy.kind, relation:manages, relation:has_permission], how: 정책 객체에 대한 쓰기 권한 → 정책이 적용되는 대상 }
+  T1611: { role: transition, status: covered, ir: [relation:hosts, config:container.privileged, config:container.host_mounts], how: 컨테이너 → 노드 (hosts) + 컨테이너 설정 }
+
+  # ---------------- 자격증명 접근
+  T1003: { role: transition, status: covered, ir: [relation:session, relation:runs, relation:stores, config:host.credential_protection], how: 호스트의 세션·서비스 계정·저장된 자격증명 + 보호 기능 }
+  T1040: { role: transition, status: covered, ir: [field:asset.groups, config:transport.encryption], how: 같은 구간 + 암호화되지 않은 통신 }
+  T1056: { role: transition, status: covered, ir: [relation:session], how: 대화형 세션 }
+  T1110: { role: transition, status: covered, ir: [relation:reaches, config:auth.password_policy, config:auth.lockout, config:auth.mfa], how: 로그인 서비스 + 비밀번호 정책·잠금·다중 인증 }
+  T1111: { role: transition, status: covered, ir: [config:auth.mfa, config:auth.mfa_strength], how: 다중 인증 방식의 강도 }
+  T1621: { role: transition, status: covered, ir: [config:auth.mfa, config:auth.mfa_strength, config:org.user_training], how: 푸시 방식 + 사용자 교육 }
+  T1187: { role: transition, status: covered, ir: [config:auth.methods, config:transport.signing, config:network.legacy_name_resolution, relation:reaches], how: 인증 방식·서명·이름 해석 설정 }
+  T1212: { role: transition, status: covered, ir: [field:asset.service+network_device.version, config:host.patch_currency], how: 서비스 취약점 }
+  T1528: { role: transition, status: covered, ir: [relation:stores, relation:grants, field:asset.credential.kind], how: 저장된 토큰 }
+  T1539: { role: transition, status: covered, ir: [relation:session], how: 웹·SaaS 서비스 세션 (session → service) }
+  T1552: { role: transition, status: covered, ir: [relation:stores, config:host.metadata_service_protection], how: 파일·설정·메타데이터 서비스 속 자격증명 }
+  T1555: { role: transition, status: covered, ir: [relation:stores], how: 비밀번호 저장소 (stores.location) }
+  T1556: { role: transition, status: covered, ir: [field:asset.role, relation:has_permission], how: 인증 서비스·신원 공급자에 대한 관리 권한 }
+  T1557: { role: transition, status: covered, ir: [config:transport.signing, config:transport.encryption, config:network.legacy_name_resolution], how: 서명·암호화·이름 해석 설정 }
+  T1558: { role: transition, status: covered, ir: [config:account.service_principal, config:account.kerberos_preauth, config:auth.password_policy, relation:has_permission], how: Kerberos 계정 속성·비밀번호 정책·위임 권한(delegate) }
+  T1606: { role: transition, status: covered, ir: [relation:grants, relation:trusts, field:asset.credential.kind], how: 서명 키(credential) → 신원 연동 }
+  T1649: { role: transition, status: partial, ir: [field:asset.role, relation:has_permission, relation:grants], how: 인증서 발급 서비스 + 발급 권한, limit: 인증서 템플릿 단위의 세부 설정은 credential 노드와 권한으로 근사. 템플릿 노드 타입이 필요할 수 있음 (P2에서 판단) }
+  T1697: { role: transition, status: covered, ir: [relation:grants, field:asset.credential.kind, config:auth.mfa], how: 앱 전용 비밀번호 (다중 인증 우회 자격증명) }
+
+  # ---------------- 내부 이동
+  T1021: { role: transition, status: covered, ir: [relation:reaches, relation:authenticates_to, config:auth.methods], how: 원격 접속 서비스 + 로그인 가능 }
+  T1072: { role: transition, status: covered, ir: [relation:manages, relation:has_permission], how: 배포 도구 → 관리 대상 (R11) }
+  T1080: { role: transition, status: partial, ir: [relation:has_permission, relation:contains, relation:authenticates_to], how: 공유 저장소 쓰기 권한 + 다른 사용자 접근, limit: 공유 콘텐츠를 실제로 누가 여는지는 로그인 가능 관계로만 근사 }
+  T1210: { role: transition, status: covered, ir: [relation:reaches, field:asset.service+network_device.version, config:host.patch_currency], how: 내부 서비스 취약점 }
+  T1534: { role: transition, status: covered, ir: [relation:session, config:org.user_training], how: 메일·협업 서비스 세션 + 사용자 교육 }
+  T1550: { role: transition, status: covered, ir: [relation:grants, config:auth.methods], how: 해시·티켓·토큰(credential) → 주체 }
+  T1563: { role: transition, status: covered, ir: [relation:session], how: 다른 주체의 원격 세션 }
+  T1570: { role: in_foothold, status: covered, ir: [relation:reaches], how: 도달 경로만 필요 }
+
+  # ---------------- 수집
+  T1005: { role: transition, status: covered, ir: [relation:hosts, relation:contains], how: 서버 위 저장소의 데이터 }
+  T1025: { role: transition, status: covered, ir: [config:host.removable_media_restricted], how: 이동식 매체 }
+  T1039: { role: transition, status: covered, ir: [relation:contains, relation:has_permission], how: 파일 공유 저장소 }
+  T1114: { role: transition, status: covered, ir: [relation:contains, relation:has_permission, relation:session], how: 메일 저장소 }
+  T1185: { role: transition, status: covered, ir: [relation:session], how: 브라우저 세션 → 웹 서비스 세션 }
+  T1213: { role: transition, status: covered, ir: [relation:contains, relation:has_permission], how: 업무 저장소(위키, 문서 관리 등) }
+  T1530: { role: transition, status: covered, ir: [relation:contains, relation:has_permission, config:access.anonymous], how: 클라우드 저장소 권한·공개 여부 }
+  T1602: { role: transition, status: covered, ir: [field:asset.role, config:access.anonymous, config:auth.default_credentials], how: 네트워크 장비 설정 저장소 }
+  T1113: { role: in_foothold, status: partial, ir: [relation:session], how: 화면 캡처, limit: 화면·입력 내용은 데이터 노드 단위 밖 }
+  T1115: { role: in_foothold, status: partial, ir: [relation:session], how: 클립보드, limit: 데이터 노드 단위 밖 }
+  T1123: { role: in_foothold, status: partial, ir: [relation:session], how: 음성, limit: 데이터 노드 단위 밖 }
+  T1125: { role: in_foothold, status: partial, ir: [relation:session], how: 영상, limit: 데이터 노드 단위 밖 }
+  T1074: { role: in_foothold, status: covered, ir: [], how: 수집한 데이터를 모으는 중간 단계 }
+  T1119: { role: in_foothold, status: covered, ir: [], how: 수집 자동화 }
+  T1560: { role: in_foothold, status: covered, ir: [], how: 압축·암호화 }
+
+  # ---------------- 유출
+  T1041: { role: transition, status: covered, ir: [relation:reaches, config:network.dlp, field:attacker_profile.egress], how: 외부로 닿는 경로 + 유출 통제 }
+  T1048: { role: transition, status: covered, ir: [relation:reaches, config:network.dlp], how: 다른 프로토콜의 외부 경로 }
+  T1567: { role: transition, status: covered, ir: [relation:reaches, config:network.web_filtering, config:network.dlp], how: 외부 웹 서비스로 가는 경로 }
+  T1537: { role: transition, status: covered, ir: [relation:has_permission, relation:trusts], how: 클라우드 계정 간 권한·신뢰 }
+  T1020: { role: transition, status: covered, ir: [relation:reaches, config:network.dlp], how: 자동 유출 (경로 조건 동일) }
+  T1029: { role: transition, status: covered, ir: [relation:reaches], how: 예약 전송 (경로 조건 동일) }
+  T1030: { role: transition, status: covered, ir: [relation:reaches, config:network.dlp], how: 분할 전송 (경로 조건 동일) }
+  T1011: { role: transition, status: partial, ir: [field:group.kind, config:host.removable_media_restricted], how: 다른 네트워크 매체, limit: 호스트에 달린 무선·블루투스 인터페이스 존재는 표현하지 않음 }
+  T1052: { role: transition, status: covered, ir: [config:host.removable_media_restricted], how: 물리 매체 }
+  T1700: { role: transition, status: covered, ir: [relation:reaches, config:network.dlp], how: AI 서비스 경유 유출 (외부 경로 조건 동일) }
+
+  # ---------------- 영향 (목표)
+  T1485: { role: goal, status: covered, ir: [field:impact_goal.harm, relation:contains], how: 데이터 파괴 (destroy) }
+  T1486: { role: goal, status: covered, ir: [field:impact_goal.harm, relation:contains, config:storage.immutable], how: 데이터 암호화 (destroy/disrupt) + 백업 보호 }
+  T1489: { role: goal, status: covered, ir: [field:impact_goal.harm, relation:depends_on], how: 서비스 중단 (disrupt) }
+  T1490: { role: goal, status: covered, ir: [config:storage.immutable, config:storage.offsite, relation:contains], how: 복구 수단(백업) 무력화 }
+  T1491: { role: goal, status: covered, ir: [field:impact_goal.harm, relation:contains], how: 공개 콘텐츠 변조 (tamper) }
+  T1495: { role: goal, status: covered, ir: [config:host.boot_integrity], how: 펌웨어 손상 }
+  T1496: { role: goal, status: covered, ir: [field:impact_goal.harm], how: 자원 탈취 (misuse) }
+  T1498: { role: goal, status: covered, ir: [config:network.ddos_protection, relation:depends_on], how: 네트워크 서비스 거부 }
+  T1499: { role: goal, status: covered, ir: [config:network.ddos_protection, relation:depends_on], how: 엔드포인트 서비스 거부 }
+  T1529: { role: goal, status: covered, ir: [field:impact_goal.harm, relation:depends_on], how: 시스템 종료 (disrupt) }
+  T1531: { role: goal, status: covered, ir: [relation:has_permission, field:impact_goal.harm], how: 계정 접근 제거 (reset_credential 권한 → disrupt) }
+  T1561: { role: goal, status: covered, ir: [field:impact_goal.harm, relation:hosts], how: 디스크 삭제 (destroy) }
+  T1565: { role: goal, status: covered, ir: [field:impact_goal.harm, relation:contains], how: 데이터 조작 (tamper) }
+  T1657: { role: goal, status: covered, ir: [field:impact_goal.harm, relation:has_permission], how: 금전 권한 오용 (misuse) }
+  T1667: { role: goal, status: covered, ir: [field:impact_goal.harm, relation:depends_on], how: 메일함 마비 (disrupt) }

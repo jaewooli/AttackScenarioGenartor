@@ -1,0 +1,271 @@
+{
+ "source": "MITRE ATT&CK Enterprise (attack-stix-data)",
+ "attack_version": "20.1",
+ "retrieved": "2026-11-21",
+ "mitigations": [
+  {
+   "id": "M1013",
+   "name": "Application Developer Guidance",
+   "url": "https://attack.mitre.org/mitigations/M1013",
+   "techniques": 17
+  },
+  {
+   "id": "M1015",
+   "name": "Active Directory Configuration",
+   "url": "https://attack.mitre.org/mitigations/M1015",
+   "techniques": 15
+  },
+  {
+   "id": "M1016",
+   "name": "Vulnerability Scanning",
+   "url": "https://attack.mitre.org/mitigations/M1016",
+   "techniques": 5
+  },
+  {
+   "id": "M1017",
+   "name": "User Training",
+   "url": "https://attack.mitre.org/mitigations/M1017",
+   "techniques": 64
+  },
+  {
+   "id": "M1018",
+   "name": "User Account Management",
+   "url": "https://attack.mitre.org/mitigations/M1018",
+   "techniques": 123
+  },
+  {
+   "id": "M1019",
+   "name": "Threat Intelligence Program",
+   "url": "https://attack.mitre.org/mitigations/M1019",
+   "techniques": 5
+  },
+  {
+   "id": "M1020",
+   "name": "SSL/TLS Inspection",
+   "url": "https://attack.mitre.org/mitigations/M1020",
+   "techniques": 4
+  },
+  {
+   "id": "M1021",
+   "name": "Restrict Web-Based Content",
+   "url": "https://attack.mitre.org/mitigations/M1021",
+   "techniques": 31
+  },
+  {
+   "id": "M1022",
+   "name": "Restrict File and Directory Permissions",
+   "url": "https://attack.mitre.org/mitigations/M1022",
+   "techniques": 63
+  },
+  {
+   "id": "M1024",
+   "name": "Restrict Registry Permissions",
+   "url": "https://attack.mitre.org/mitigations/M1024",
+   "techniques": 20
+  },
+  {
+   "id": "M1025",
+   "name": "Privileged Process Integrity",
+   "url": "https://attack.mitre.org/mitigations/M1025",
+   "techniques": 7
+  },
+  {
+   "id": "M1026",
+   "name": "Privileged Account Management",
+   "url": "https://attack.mitre.org/mitigations/M1026",
+   "techniques": 115
+  },
+  {
+   "id": "M1027",
+   "name": "Password Policies",
+   "url": "https://attack.mitre.org/mitigations/M1027",
+   "techniques": 47
+  },
+  {
+   "id": "M1028",
+   "name": "Operating System Configuration",
+   "url": "https://attack.mitre.org/mitigations/M1028",
+   "techniques": 39
+  },
+  {
+   "id": "M1029",
+   "name": "Remote Data Storage",
+   "url": "https://attack.mitre.org/mitigations/M1029",
+   "techniques": 11
+  },
+  {
+   "id": "M1030",
+   "name": "Network Segmentation",
+   "url": "https://attack.mitre.org/mitigations/M1030",
+   "techniques": 38
+  },
+  {
+   "id": "M1031",
+   "name": "Network Intrusion Prevention",
+   "url": "https://attack.mitre.org/mitigations/M1031",
+   "techniques": 62
+  },
+  {
+   "id": "M1032",
+   "name": "Multi-factor Authentication",
+   "url": "https://attack.mitre.org/mitigations/M1032",
+   "techniques": 48
+  },
+  {
+   "id": "M1033",
+   "name": "Limit Software Installation",
+   "url": "https://attack.mitre.org/mitigations/M1033",
+   "techniques": 17
+  },
+  {
+   "id": "M1034",
+   "name": "Limit Hardware Installation",
+   "url": "https://attack.mitre.org/mitigations/M1034",
+   "techniques": 7
+  },
+  {
+   "id": "M1035",
+   "name": "Limit Access to Resource Over Network",
+   "url": "https://attack.mitre.org/mitigations/M1035",
+   "techniques": 19
+  },
+  {
+   "id": "M1036",
+   "name": "Account Use Policies",
+   "url": "https://attack.mitre.org/mitigations/M1036",
+   "techniques": 12
+  },
+  {
+   "id": "M1037",
+   "name": "Filter Network Traffic",
+   "url": "https://attack.mitre.org/mitigations/M1037",
+   "techniques": 52
+  },
+  {
+   "id": "M1038",
+   "name": "Execution Prevention",
+   "url": "https://attack.mitre.org/mitigations/M1038",
+   "techniques": 82
+  },
+  {
+   "id": "M1039",
+   "name": "Environment Variable Permissions",
+   "url": "https://attack.mitre.org/mitigations/M1039",
+   "techniques": 2
+  },
+  {
+   "id": "M1040",
+   "name": "Behavior Prevention on Endpoint",
+   "url": "https://attack.mitre.org/mitigations/M1040",
+   "techniques": 51
+  },
+  {
+   "id": "M1041",
+   "name": "Encrypt Sensitive Information",
+   "url": "https://attack.mitre.org/mitigations/M1041",
+   "techniques": 33
+  },
+  {
+   "id": "M1042",
+   "name": "Disable or Remove Feature or Program",
+   "url": "https://attack.mitre.org/mitigations/M1042",
+   "techniques": 72
+  },
+  {
+   "id": "M1043",
+   "name": "Credential Access Protection",
+   "url": "https://attack.mitre.org/mitigations/M1043",
+   "techniques": 10
+  },
+  {
+   "id": "M1044",
+   "name": "Restrict Library Loading",
+   "url": "https://attack.mitre.org/mitigations/M1044",
+   "techniques": 3
+  },
+  {
+   "id": "M1045",
+   "name": "Code Signing",
+   "url": "https://attack.mitre.org/mitigations/M1045",
+   "techniques": 22
+  },
+  {
+   "id": "M1046",
+   "name": "Boot Integrity",
+   "url": "https://attack.mitre.org/mitigations/M1046",
+   "techniques": 14
+  },
+  {
+   "id": "M1047",
+   "name": "Audit",
+   "url": "https://attack.mitre.org/mitigations/M1047",
+   "techniques": 111
+  },
+  {
+   "id": "M1048",
+   "name": "Application Isolation and Sandboxing",
+   "url": "https://attack.mitre.org/mitigations/M1048",
+   "techniques": 15
+  },
+  {
+   "id": "M1049",
+   "name": "Antivirus/Antimalware",
+   "url": "https://attack.mitre.org/mitigations/M1049",
+   "techniques": 23
+  },
+  {
+   "id": "M1050",
+   "name": "Exploit Protection",
+   "url": "https://attack.mitre.org/mitigations/M1050",
+   "techniques": 12
+  },
+  {
+   "id": "M1051",
+   "name": "Update Software",
+   "url": "https://attack.mitre.org/mitigations/M1051",
+   "techniques": 42
+  },
+  {
+   "id": "M1052",
+   "name": "User Account Control",
+   "url": "https://attack.mitre.org/mitigations/M1052",
+   "techniques": 7
+  },
+  {
+   "id": "M1053",
+   "name": "Data Backup",
+   "url": "https://attack.mitre.org/mitigations/M1053",
+   "techniques": 10
+  },
+  {
+   "id": "M1054",
+   "name": "Software Configuration",
+   "url": "https://attack.mitre.org/mitigations/M1054",
+   "techniques": 36
+  },
+  {
+   "id": "M1055",
+   "name": "Do Not Mitigate",
+   "url": "https://attack.mitre.org/mitigations/M1055",
+   "techniques": 3
+  },
+  {
+   "id": "M1056",
+   "name": "Pre-compromise",
+   "url": "https://attack.mitre.org/mitigations/M1056",
+   "techniques": 89
+  },
+  {
+   "id": "M1057",
+   "name": "Data Loss Prevention",
+   "url": "https://attack.mitre.org/mitigations/M1057",
+   "techniques": 12
+  },
+  {
+   "id": "M1060",
+   "name": "Out-of-Band Communications Channel",
+   "url": "https://attack.mitre.org/mitigations/M1060",
+   "techniques": 7
+  }
+ ]
+}

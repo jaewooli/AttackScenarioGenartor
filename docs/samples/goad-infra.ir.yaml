@@ -1,0 +1,215 @@
+# GOAD 인프라 IR 샘플 (IR v0.2 기준, 인프라 구성만)
+# 출처: Orange-Cyberdefense/GOAD, ad/GOAD (inventory, README, config.json)
+# 제외한 것: 비밀번호, ACL, 취약 설정, 스크립트, 공격 경로, 보안 설정값
+# 세부 수준: 호스트와 서비스는 L1 (OS 버전은 명시), 방화벽과 패치 정보는 unknown
+
+ir_version: "0.2"
+meta:
+  name: "GOAD (Game of Active Directory)"
+  sources:
+    - { id: inv, kind: ansible_inventory, path: ad/GOAD/data/inventory }
+    - { id: cfg, kind: json, path: ad/GOAD/data/config.json }
+    - { id: doc, kind: readme, path: ad/GOAD/README.md }
+
+groups:
+  - { id: net-lab, kind: subnet, cidr: "192.168.56.0/24" }
+  - { id: forest-sevenkingdoms, kind: directory_forest }
+  - { id: dom-sevenkingdoms, kind: directory_domain, fqdn: sevenkingdoms.local, netbios: SEVENKINGDOMS, parent: forest-sevenkingdoms }
+  - { id: dom-north, kind: directory_domain, fqdn: north.sevenkingdoms.local, netbios: NORTH, parent: dom-sevenkingdoms }
+  - { id: forest-essos, kind: directory_forest }
+  - { id: dom-essos, kind: directory_domain, fqdn: essos.local, netbios: ESSOS, parent: forest-essos }
+  # sevenkingdoms.local 의 OU
+  - { id: ou-vale,        kind: directory_ou, name: Vale,        parent: dom-sevenkingdoms }
+  - { id: ou-ironislands, kind: directory_ou, name: IronIslands, parent: dom-sevenkingdoms }
+  - { id: ou-riverlands,  kind: directory_ou, name: Riverlands,  parent: dom-sevenkingdoms }
+  - { id: ou-crownlands,  kind: directory_ou, name: Crownlands,  parent: dom-sevenkingdoms }
+  - { id: ou-stormlands,  kind: directory_ou, name: Stormlands,  parent: dom-sevenkingdoms }
+  - { id: ou-westerlands, kind: directory_ou, name: Westerlands, parent: dom-sevenkingdoms }
+  - { id: ou-reach,       kind: directory_ou, name: Reach,       parent: dom-sevenkingdoms }
+  - { id: ou-dorne,       kind: directory_ou, name: Dorne,       parent: dom-sevenkingdoms }
+
+assets:
+  # ---------- 호스트 ----------
+  - id: dc01
+    type: host
+    name: kingslanding
+    role: domain_controller
+    groups: [net-lab, dom-sevenkingdoms]
+    os: { family: windows, version: "Windows Server 2019", source: declared, evidence: doc }
+    ip: "192.168.56.10"
+
+  - id: dc02
+    type: host
+    name: winterfell
+    role: domain_controller
+    groups: [net-lab, dom-north]
+    os: { family: windows, version: "Windows Server 2019", source: declared, evidence: doc }
+    ip: "192.168.56.11"
+
+  - id: dc03
+    type: host
+    name: meereen
+    role: domain_controller
+    groups: [net-lab, dom-essos]
+    os: { family: windows, version: "Windows Server 2016", source: declared, evidence: doc }
+    ip: "192.168.56.12"
+
+  - id: srv02
+    type: host
+    name: castelblack
+    role: app_server            # IIS + MSSQL 서버
+    groups: [net-lab, dom-north]
+    os: { family: windows, version: "Windows Server 2019", source: declared, evidence: doc }
+    ip: "192.168.56.22"
+
+  - id: srv03
+    type: host
+    name: braavos
+    role: app_server            # MSSQL + 인증서 서비스
+    groups: [net-lab, dom-essos]
+    os: { family: windows, version: "Windows Server 2016", source: declared, evidence: doc }
+    ip: "192.168.56.23"
+
+  # ---------- 서비스 ----------
+  - { id: svc-dc01-ad,    type: service, product: active_directory_domain_services, evidence: inv }
+  - { id: svc-dc02-ad,    type: service, product: active_directory_domain_services, evidence: inv }
+  - { id: svc-dc03-ad,    type: service, product: active_directory_domain_services, evidence: inv }
+  - { id: svc-dc01-adcs,  type: service, product: ad_certificate_services, evidence: inv }
+  - { id: svc-srv03-adcs, type: service, product: ad_certificate_services, evidence: inv }
+  - { id: svc-srv02-iis,  type: service, product: iis,   port: 80,   protocol: tcp, evidence: inv }
+  - { id: svc-srv02-sql,  type: service, product: mssql, port: 1433, protocol: tcp, version: { value: null, source: unknown }, evidence: inv }
+  - { id: svc-srv03-sql,  type: service, product: mssql, port: 1433, protocol: tcp, version: { value: null, source: unknown }, evidence: inv }
+  - { id: svc-srv02-smb,  type: service, product: smb,   port: 445,  protocol: tcp, evidence: cfg }
+  - { id: svc-srv03-smb,  type: service, product: smb,   port: 445,  protocol: tcp, evidence: cfg }
+
+  # ---------- 그룹 (디렉터리 그룹) ----------
+  # sevenkingdoms.local
+  - { id: g-lannister,    type: identity, kind: group, name: Lannister,    groups: [dom-sevenkingdoms, ou-westerlands] }
+  - { id: g-baratheon,    type: identity, kind: group, name: Baratheon,    groups: [dom-sevenkingdoms, ou-stormlands] }
+  - { id: g-smallcouncil, type: identity, kind: group, name: "Small Council", groups: [dom-sevenkingdoms, ou-crownlands] }
+  - { id: g-dragonstone,  type: identity, kind: group, name: DragonStone,  groups: [dom-sevenkingdoms, ou-crownlands] }
+  - { id: g-kingsguard,   type: identity, kind: group, name: KingsGuard,   groups: [dom-sevenkingdoms, ou-crownlands] }
+  - { id: g-dragonrider,  type: identity, kind: group, name: DragonRider,  groups: [dom-sevenkingdoms, ou-crownlands] }
+  - { id: g-acrossnarrow, type: identity, kind: group, name: AcrossTheNarrowSea, scope: domain_local, groups: [dom-sevenkingdoms] }
+  # north.sevenkingdoms.local
+  - { id: g-stark,        type: identity, kind: group, name: Stark,        groups: [dom-north] }
+  - { id: g-nightwatch,   type: identity, kind: group, name: "Night Watch", groups: [dom-north] }
+  - { id: g-mormont,      type: identity, kind: group, name: Mormont,      groups: [dom-north] }
+  - { id: g-acrosssea,    type: identity, kind: group, name: AcrossTheSea, scope: domain_local, groups: [dom-north] }
+  # essos.local
+  - { id: g-targaryen,    type: identity, kind: group, name: Targaryen,    groups: [dom-essos] }
+  - { id: g-dothraki,     type: identity, kind: group, name: Dothraki,     groups: [dom-essos] }
+  - { id: g-dragons,      type: identity, kind: group, name: Dragons,      groups: [dom-essos] }
+  - { id: g-queenprot,    type: identity, kind: group, name: QueenProtector, groups: [dom-essos] }
+  - { id: g-greatmaster,  type: identity, kind: group, name: greatmaster,  scope: universal, groups: [dom-essos] }
+  - { id: g-dragonsfriends, type: identity, kind: group, name: DragonsFriends, scope: domain_local, groups: [dom-essos] }
+  - { id: g-spys,         type: identity, kind: group, name: Spys,         scope: domain_local, groups: [dom-essos] }
+
+  # ---------- 사용자 계정 (이름, 소속 도메인, 그룹만) ----------
+  # sevenkingdoms.local
+  - { id: u-tywin,     type: identity, kind: user, name: tywin.lannister,   groups: [dom-sevenkingdoms, ou-crownlands] }
+  - { id: u-jaime,     type: identity, kind: user, name: jaime.lannister,   groups: [dom-sevenkingdoms, ou-crownlands] }
+  - { id: u-cersei,    type: identity, kind: user, name: cersei.lannister,  groups: [dom-sevenkingdoms, ou-crownlands] }
+  - { id: u-tyron,     type: identity, kind: user, name: tyron.lannister,   groups: [dom-sevenkingdoms, ou-westerlands] }
+  - { id: u-robert,    type: identity, kind: user, name: robert.baratheon,  groups: [dom-sevenkingdoms, ou-crownlands] }
+  - { id: u-joffrey,   type: identity, kind: user, name: joffrey.baratheon, groups: [dom-sevenkingdoms, ou-crownlands] }
+  - { id: u-renly,     type: identity, kind: user, name: renly.baratheon,   groups: [dom-sevenkingdoms, ou-crownlands] }
+  - { id: u-stannis,   type: identity, kind: user, name: stannis.baratheon, groups: [dom-sevenkingdoms, ou-crownlands] }
+  - { id: u-petyr,     type: identity, kind: user, name: petyer.baelish,    groups: [dom-sevenkingdoms, ou-crownlands] }
+  - { id: u-varys,     type: identity, kind: user, name: lord.varys,        groups: [dom-sevenkingdoms, ou-crownlands] }
+  - { id: u-pycelle,   type: identity, kind: user, name: maester.pycelle,   groups: [dom-sevenkingdoms, ou-crownlands] }
+  # north.sevenkingdoms.local
+  - { id: u-arya,      type: identity, kind: user, name: arya.stark,     groups: [dom-north] }
+  - { id: u-eddard,    type: identity, kind: user, name: eddard.stark,   groups: [dom-north] }
+  - { id: u-catelyn,   type: identity, kind: user, name: catelyn.stark,  groups: [dom-north] }
+  - { id: u-robb,      type: identity, kind: user, name: robb.stark,     groups: [dom-north] }
+  - { id: u-sansa,     type: identity, kind: user, name: sansa.stark,    groups: [dom-north] }
+  - { id: u-brandon,   type: identity, kind: user, name: brandon.stark,  groups: [dom-north] }
+  - { id: u-rickon,    type: identity, kind: user, name: rickon.stark,   groups: [dom-north] }
+  - { id: u-hodor,     type: identity, kind: user, name: hodor,          groups: [dom-north] }
+  - { id: u-jon,       type: identity, kind: user, name: jon.snow,       groups: [dom-north] }
+  - { id: u-samwell,   type: identity, kind: user, name: samwell.tarly,  groups: [dom-north] }
+  - { id: u-jeor,      type: identity, kind: user, name: jeor.mormont,   groups: [dom-north] }
+  - { id: u-sqlsvc-n,  type: identity, kind: service_account, name: sql_svc, groups: [dom-north] }
+  # essos.local
+  - { id: u-daenerys,  type: identity, kind: user, name: daenerys.targaryen, groups: [dom-essos] }
+  - { id: u-viserys,   type: identity, kind: user, name: viserys.targaryen,  groups: [dom-essos] }
+  - { id: u-khal,      type: identity, kind: user, name: khal.drogo,         groups: [dom-essos] }
+  - { id: u-jorah,     type: identity, kind: user, name: jorah.mormont,      groups: [dom-essos] }
+  - { id: u-missandei, type: identity, kind: user, name: missandei,          groups: [dom-essos] }
+  - { id: u-drogon,    type: identity, kind: user, name: drogon,             groups: [dom-essos] }
+  - { id: u-sqlsvc-e,  type: identity, kind: service_account, name: sql_svc,    groups: [dom-essos] }
+  - { id: u-gmsa,      type: identity, kind: managed_service_account, name: gmsaDragon,            groups: [dom-essos] }
+
+relations:
+  # ---------- 호스트 - 서비스 ----------
+  - { type: runs, from: dc01,  to: svc-dc01-ad }
+  - { type: runs, from: dc02,  to: svc-dc02-ad }
+  - { type: runs, from: dc03,  to: svc-dc03-ad }
+  - { type: runs, from: dc01,  to: svc-dc01-adcs }
+  - { type: runs, from: srv03, to: svc-srv03-adcs }
+  - { type: runs, from: srv02, to: svc-srv02-iis }
+  - { type: runs, from: srv02, to: svc-srv02-sql, as: u-sqlsvc-n }
+  - { type: runs, from: srv03, to: svc-srv03-sql, as: u-sqlsvc-e }
+  - { type: runs, from: srv02, to: svc-srv02-smb }
+  - { type: runs, from: srv03, to: svc-srv03-smb }
+
+  # ---------- 네트워크: 단일 서브넷, 내부 방화벽 정보 없음 ----------
+  - { type: reaches, from: "group:net-lab", to: "group:net-lab", source: assumed, confidence: 0.9,
+      note: "같은 /24 서브넷이라 상호 도달 가능으로 가정. 호스트 방화벽 정보는 입력에 없음" }
+
+  # ---------- 도메인 구조 ----------
+  - { type: trusts, from: "group:dom-sevenkingdoms", to: "group:dom-essos",         kind: forest_trust, direction: bidirectional, evidence: cfg }
+  - { type: trusts, from: "group:dom-sevenkingdoms", to: "group:dom-north",         kind: parent_child, direction: bidirectional, evidence: inv }
+  - { type: manages, from: dc01, to: "group:dom-sevenkingdoms", kind: domain_controller_of }
+  - { type: manages, from: dc02, to: "group:dom-north",         kind: domain_controller_of }
+  - { type: manages, from: dc03, to: "group:dom-essos",         kind: domain_controller_of }
+
+
+  # ---------- 그룹 멤버십 ----------
+  # sevenkingdoms.local
+  - { type: member_of, from: u-tywin,   to: g-lannister }
+  - { type: member_of, from: u-jaime,   to: g-lannister }
+  - { type: member_of, from: u-cersei,  to: g-lannister }
+  - { type: member_of, from: u-cersei,  to: g-baratheon }
+  - { type: member_of, from: u-cersei,  to: g-smallcouncil }
+  - { type: member_of, from: u-tyron,   to: g-lannister }
+  - { type: member_of, from: u-robert,  to: g-baratheon }
+  - { type: member_of, from: u-robert,  to: g-smallcouncil }
+  - { type: member_of, from: u-joffrey, to: g-baratheon }
+  - { type: member_of, from: u-joffrey, to: g-lannister }
+  - { type: member_of, from: u-renly,   to: g-baratheon }
+  - { type: member_of, from: u-renly,   to: g-smallcouncil }
+  - { type: member_of, from: u-stannis, to: g-baratheon }
+  - { type: member_of, from: u-stannis, to: g-smallcouncil }
+  - { type: member_of, from: u-petyr,   to: g-smallcouncil }
+  - { type: member_of, from: u-varys,   to: g-smallcouncil }
+  - { type: member_of, from: u-pycelle, to: g-smallcouncil }
+  # north.sevenkingdoms.local
+  - { type: member_of, from: u-arya,    to: g-stark }
+  - { type: member_of, from: u-eddard,  to: g-stark }
+  - { type: member_of, from: u-catelyn, to: g-stark }
+  - { type: member_of, from: u-robb,    to: g-stark }
+  - { type: member_of, from: u-sansa,   to: g-stark }
+  - { type: member_of, from: u-brandon, to: g-stark }
+  - { type: member_of, from: u-rickon,  to: g-stark }
+  - { type: member_of, from: u-hodor,   to: g-stark }
+  - { type: member_of, from: u-jon,     to: g-stark }
+  - { type: member_of, from: u-jon,     to: g-nightwatch }
+  - { type: member_of, from: u-samwell, to: g-nightwatch }
+  - { type: member_of, from: u-jeor,    to: g-nightwatch }
+  - { type: member_of, from: u-jeor,    to: g-mormont }
+  # essos.local
+  - { type: member_of, from: u-daenerys, to: g-targaryen }
+  - { type: member_of, from: u-viserys,  to: g-targaryen }
+  - { type: member_of, from: u-jorah,    to: g-targaryen }
+  - { type: member_of, from: u-khal,     to: g-dothraki }
+  - { type: member_of, from: u-drogon,   to: g-dragons }
+  - { type: member_of, from: g-dragons,  to: g-queenprot }
+  # 도메인 간 그룹 구성원
+  - { type: member_of, from: u-daenerys, to: g-acrossnarrow, note: "essos 사용자가 sevenkingdoms 그룹에 속함" }
+  - { type: member_of, from: u-tyron,    to: g-dragonsfriends, note: "sevenkingdoms 사용자가 essos 그룹에 속함" }
+  - { type: member_of, from: u-daenerys, to: g-dragonsfriends }
+  - { type: member_of, from: g-smallcouncil, to: g-spys }
+
+attacker_profiles: []   # 이 샘플은 인프라만 정의. 공격자 시작점과 목표는 별도 파일로 분리 예정
