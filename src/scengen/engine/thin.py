@@ -68,23 +68,36 @@ def _know_prem(facts: set[Fact], knowledge: str, target: str) -> tuple[Fact, ...
     return (kf,) if kf in facts else None
 
 
-def _exploit_prob(graph: InfraGraph, host_id: str, svc_id: str | None, capability: str) -> float:
+def _exploit_prob(graph: InfraGraph, host_id: str | None, svc_id: str | None, capability: str) -> float:
     """R10 노출 서비스 침해의 단순 사전 확률 추정."""
     cap = CAPABILITY_FACTOR.get(capability, 0.70)
     base = 0.35
     if svc_id:
+        anon, _, _ = graph.get_config(svc_id, "access.anonymous")
+        auth_methods, _, _ = graph.get_config(svc_id, "auth.methods")
+        default_cred, _, _ = graph.get_config(svc_id, "auth.default_credentials")
+        lockout, _, _ = graph.get_config(svc_id, "auth.lockout")
+        # 인증이 필수이고 기본 자격증명·잠금 통제가 있으면 노출 침해 확률을 낮춤
+        if auth_methods and anon is not True:
+            base = 0.14
+            if default_cred is False:
+                base *= 0.75
+            if lockout is True:
+                base *= 0.80
+
         sec_dev, _, _ = graph.get_config(svc_id, "app.secure_development")
         waf, _, _ = graph.get_config(svc_id, "network.application_filtering")
         if sec_dev is True:
             base *= 0.55
         if waf is True:
             base *= 0.70
-    patch, _, _ = graph.get_config(host_id, "host.patch_currency")
-    if patch == "lagging":
-        base = min(0.85, base * 1.8)
-    elif patch == "current":
-        base *= 0.75
-    return round(min(0.95, max(0.05, base * cap)), 4)
+    if host_id:
+        patch, _, _ = graph.get_config(host_id, "host.patch_currency")
+        if patch == "lagging":
+            base = min(0.85, base * 1.8)
+        elif patch == "current":
+            base *= 0.75
+    return round(min(0.95, max(0.03, base * cap)), 4)
 
 
 def _lpe_prob(graph: InfraGraph, host_id: str, capability: str) -> float:
@@ -302,11 +315,13 @@ def run_variant(
                 cond_prob = 0.7 if r.get("condition") else 1.0
                 base_p = round(obj_confidence(r) * cond_prob, 4)
 
-                if is_group_ref(r["to"]) and action == "admin":
+                if is_group_ref(r["to"]):
                     gid = strip_group_prefix(r["to"])
-                    if add_step("R3", Fact.controls(gid), (actor_fact,), base_p, f"{actor_id} admin on group:{gid}"):
-                        changed = True
-                    continue
+                    if action in ("admin", "modify_permissions", "take_ownership"):
+                        if add_step("R3", Fact.controls(gid), (actor_fact,), base_p, f"{actor_id} {action} on group:{gid}"):
+                            changed = True
+                    if r.get("inherit") is False:
+                        continue
 
                 for tid in graph.expand_ref_assets(r["to"]):
                     kp = _know_prem(facts, knowledge, tid)
@@ -321,7 +336,7 @@ def run_variant(
                             if cr["from"] != tid:
                                 continue
                             did = cr["to"]
-                            if action in ("read", "admin"):
+                            if action in ("read", "admin", "modify_permissions", "take_ownership"):
                                 if cr.get("encrypted") and cr.get("key_ref"):
                                     kf = Fact.has_credential(cr["key_ref"])
                                     if kf in facts:
@@ -330,23 +345,31 @@ def run_variant(
                                 else:
                                     if add_step("R3", Fact.data_access(did, "read"), (actor_fact,) + kp, round(base_p * obj_confidence(cr), 4), f"{tid} 읽기"):
                                         changed = True
-                            if action in ("write", "admin"):
+                            if action in ("write", "admin", "modify_permissions", "take_ownership"):
                                 if add_step("R3", Fact.data_access(did, "write"), (actor_fact,) + kp, round(base_p * obj_confidence(cr), 4), f"{tid} 쓰기"):
                                     changed = True
                     elif ttype == "data":
-                        if action in ("read", "admin"):
+                        if action in ("read", "admin", "modify_permissions", "take_ownership"):
                             if add_step("R3", Fact.data_access(tid, "read"), (actor_fact,) + kp, base_p, "직접 데이터 읽기"):
                                 changed = True
-                        if action in ("write", "admin"):
+                        if action in ("write", "admin", "modify_permissions", "take_ownership"):
                             if add_step("R3", Fact.data_access(tid, "write"), (actor_fact,) + kp, base_p, "직접 데이터 쓰기"):
                                 changed = True
-                    elif ttype in ("host", "service") and action in ("execute", "admin"):
-                        lvl = "admin" if action == "admin" else "user"
+                    elif ttype in ("host", "service") and action in ("execute", "admin", "modify_permissions", "take_ownership"):
+                        lvl = "admin" if action in ("admin", "modify_permissions", "take_ownership") else "user"
                         if add_step("R3", Fact.foothold(tid, lvl), (actor_fact,) + kp, base_p, f"{actor_id} {action} on {tid}"):
                             changed = True
-                    elif ttype == "policy" and action in ("write", "admin"):
+                    elif ttype == "policy" and action in ("write", "admin", "modify_permissions", "take_ownership"):
                         if add_step("R3", Fact.foothold(tid, "admin"), (actor_fact,) + kp, base_p, f"{actor_id} 정책 수정 권한"):
                             changed = True
+                    elif ttype == "identity":
+                        tkind = t_asset.get("kind")
+                        if action in ("reset_credential", "delegate", "admin", "modify_permissions", "take_ownership"):
+                            if add_step("R3", Fact.acts_as(tid), (actor_fact,) + kp, base_p, f"{actor_id} {action} → {tid}"):
+                                changed = True
+                        elif action == "add_member" and tkind == "group":
+                            if add_step("R3", Fact.acts_as(tid), (actor_fact,) + kp, base_p, f"{actor_id} add_member → {tid}"):
+                                changed = True
 
         # ---- R4: 실행 계정 (foothold(admin) + runs.as -> acts_as) ----
         for r in graph.by_type.get("runs", []):
@@ -398,6 +421,19 @@ def run_variant(
                 if add_step("R8", Fact.controls(gid), (fh,), obj_confidence(r), f"{r['from']} → group:{gid}"):
                     changed = True
 
+        # role: domain_controller 호스트의 admin 거점 → 소속 directory_domain 장악
+        for aid, lvl in list(best_fh.items()):
+            if not priv_at_least(lvl, "admin"):
+                continue
+            a = graph.assets.get(aid)
+            if a and a.get("type") == "host" and a.get("role") == "domain_controller":
+                fh = Fact.foothold(aid, lvl)
+                for gid in a.get("groups") or []:
+                    g = graph.groups.get(gid)
+                    if g and g.get("kind") == "directory_domain":
+                        if add_step("R8", Fact.controls(gid), (fh,), 0.98, f"DC {aid} → 도메인 {gid} 장악"):
+                            changed = True
+
         for f in list(facts):
             if f.kind != "controls":
                 continue
@@ -434,7 +470,7 @@ def run_variant(
                 if add_step("R9", Fact.data_access(data_id, "write"), (fh,), obj_confidence(r), f"{store_id} 데이터 쓰기"):
                     changed = True
 
-        # ---- R10: 노출 서비스 침해 (reaches + runs -> foothold(user)) ----
+        # ---- R10: 노출 서비스 침해 (reaches + runs -> foothold(user), 단독 managed_service 포함) ----
         for src_id, lvl in list(best_fh.items()):
             src_fact = Fact.foothold(src_id, lvl)
             for r in graph.by_type.get("runs", []):
@@ -452,6 +488,18 @@ def run_variant(
                 if matches:
                     p = round(_exploit_prob(graph, host_id, svc_id, capability) * max(m.confidence for m in matches), 4)
                     if add_step("R10", Fact.foothold(host_id, "user"), (src_fact,) + kp, p, f"{src_id} → {host_id}:{svc_id}"):
+                        changed = True
+            # 호스트가 없는 관리형 서비스(managed_service 등)에 직접 도달
+            for svc_id, svc in graph.assets.items():
+                if svc.get("type") != "service" or svc_id in svc_hosts or src_id == svc_id:
+                    continue
+                kp = _know_prem(facts, knowledge, svc_id)
+                if kp is None:
+                    continue
+                matches = graph.can_reach(src_id, svc_id, port=svc.get("port"))
+                if matches:
+                    p = round(_exploit_prob(graph, None, svc_id, capability) * max(m.confidence for m in matches), 4)
+                    if add_step("R10", Fact.foothold(svc_id, "user"), (src_fact,) + kp, p, f"{src_id} → {svc_id}"):
                         changed = True
 
         # ---- R10b: 로컬 권한 상승 (foothold(user) -> foothold(admin)) ----
@@ -696,7 +744,22 @@ def analyze_doc(doc: dict[str, Any]) -> list[VariantResult]:
     profiles = doc.get("attacker_profiles")
     if not profiles:
         ext_ids = [aid for aid, a in graph.assets.items() if a.get("type") == "external"]
-        profiles = [{"id": "external", "start": ext_ids or ["ext-internet"], "capability": "medium"}]
+        if ext_ids:
+            profiles = [{"id": "external", "start": ext_ids, "capability": "medium"}]
+        else:
+            # 외부 노드가 없는 내부 랩/망 IR: 워크스테이션·점프호스트·첫 호스트를 자동 후보로 제안
+            ws_ids = [
+                aid for aid, a in graph.assets.items()
+                if a.get("type") == "host" and a.get("role") in ("workstation", "jump_host")
+            ]
+            if not ws_ids:
+                ws_ids = [aid for aid, a in graph.assets.items() if a.get("type") == "host"][:1]
+            profiles = [{
+                "id": "insider-auto",
+                "start": ws_ids,
+                "initial_privilege": "user",
+                "capability": "medium",
+            }]
     results: list[VariantResult] = []
     for prof in profiles:
         for var in profile_variants(prof):

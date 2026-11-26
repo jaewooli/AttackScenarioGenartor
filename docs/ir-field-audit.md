@@ -22,7 +22,8 @@
 | R7 | 자격증명 사용: `has_credential` + `grants` → `acts_as` |
 | R8 | 그룹 장악: 그룹을 관리하는 자산에 대한 `foothold(admin)` → `controls` |
 | R9 | 데이터 접근: 저장소(또는 저장소를 올린 서버, `hosts`)에 대한 `foothold(admin)` + `contains` → `data_access` |
-| R10 | 노출 서비스 침해: 외부에서 닿는 서비스 → `foothold(user)` (넓은 사전확률) |
+| R10 | 노출 서비스 침해: 외부·내부에서 닿는 서비스(`runs` 및 단독 `managed_service`) → `foothold(user)` (인증·설정별 사전확률) |
+| R10b | 로컬 권한 상승: `foothold(host, user)` → `foothold(host, admin)` (패치·하드닝·EPP 반영) |
 | R11 | 관리 주체: `foothold(admin)` on 관리자 + `manages` → 피관리 자산 `foothold(admin)` (**감사에서 새로 발견, 규칙 목록에 없었음**) |
 | N | 네트워크 도달성 계산 (스펙 6.1) |
 | G | 목표 자동 생성 (스펙 8.4) |
@@ -88,14 +89,14 @@
 | `asset.software.usage` | — (L3) | 코드 분석 | 보류 |
 | `asset.identity.kind` | R1 (그룹인지), R5 (그룹은 세션 불가) | DIR, IaC(IAM) | 핵심 |
 | `asset.identity.scope` | — | DIR | 메타 |
-| `asset.credential.kind` | R7 (종류별 사용 확률) | 사람, 추론 | 의미 미정 |
+| `asset.credential.kind` | R7 (종류별 사용 확률) | 사람, 추론 | 의미 미정 (`rule-dsl.md` 5장에 정의안, P3에서 구현) |
 | `asset.credential.scope` | — | 사람 | 메타 |
 | `asset.data.categories` | G, S (영향도 기본값) | 사람, LLM 추론 | 핵심·사전분포 필수 |
 | `asset.data.environment` | S (테스트 데이터는 영향 낮음) | 사람, 태그 추론 | 핵심·사전분포 필수 |
 | `asset.data.identifiers` | G (결합 목표 후보) | 사람, DB 스키마 | 핵심·사전분포 필수 |
-| `asset.data.volume` | S (영향도 크기) | 사람 | 의미 미정 |
-| `asset.data.regulations` | S | 사람, `categories`에서 추론 | 의미 미정 |
-| `asset.business_service.downtime_impact` | S (중단 목표 가치) | 사람 | 의미 미정 (형식 자체가 자유 객체) |
+| `asset.data.volume` | S (영향도 크기) | 사람 | 의미 미정 (`rule-dsl.md` 5장에 정의안, P3에서 구현) |
+| `asset.data.regulations` | S | 사람, `categories`에서 추론 | 의미 미정 (`rule-dsl.md` 5장에 정의안, P3에서 구현) |
+| `asset.business_service.downtime_impact` | S (중단 목표 가치) | 사람 | 의미 미정 (`rule-dsl.md` 5장에 정의안, P3에서 구현) |
 | `asset.policy.kind` | R11 (정책 → `manages` → 적용 대상) | DIR(그룹 정책), IaC(조직 정책) | 메타 (종류 구분용. 엔진은 `manages`와 권한만 읽음) |
 | `asset.external.trust_level` | V (협력사 시작점) | 사람 | 메타 |
 
@@ -135,13 +136,13 @@
 | `attacker_profile.initial_privilege` | V | 사람 | 핵심 |
 | `attacker_profile.knowledge` | V | 기본값(둘 다) | 핵심 |
 | `attacker_profile.egress` | V | 기본값(둘 다) | 핵심 |
-| `attacker_profile.capability` | S (단계 성공 확률) | 사람 | 의미 미정 (역량 → 확률 변환 없음) |
+| `attacker_profile.capability` | S (단계 성공 확률: `low/medium/high/advanced` 계수) | 사람 | 핵심 |
 | `attacker_profile.description` | — | 사람 | 메타 |
 | `context.known_state` | V (시작 상태) | 사람 | 핵심 |
 | `context.defaults` | P | 사람 | 핵심·사전분포 필수 |
 | `context.scope` | N, G (제외 대상) | 사람 | 핵심 |
-| `context.analysis` | G (목표 필터) | 사람 | 의미 미정 (키가 자유 객체) |
-| `context.organization` | S (CIA 우선순위) | 사람 | 의미 미정 (키가 자유 객체) |
+| `context.analysis` | G (목표 필터) | 사람 | 의미 미정 (`rule-dsl.md` 5장에 정의안, P3에서 구현) |
+| `context.organization` | S (CIA 우선순위) | 사람 | 의미 미정 (`rule-dsl.md` 5장에 정의안, P3에서 구현) |
 | `context.narrative` | — (P6 LLM 검토 층) | 사람 | 보류 |
 
 ## 감사 결과 (2026-11-21)

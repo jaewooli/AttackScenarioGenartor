@@ -101,3 +101,71 @@ def test_deny_overrides_allow_and_encrypted_requires_key():
     }
     res = run_variant(InfraGraph(doc), {"id": "ext", "start": ["ext"]}, "informed", "assumed_open")
     assert Fact.data_access("d1", "read") not in res.facts
+
+
+def test_goad_auto_profile_and_dc_controls():
+    """attacker_profiles와 external이 없는 GOAD 샘플에서도 자동 내부자 후보로 분석이 동작해야 한다."""
+    doc = load_ir(SAMPLES / "goad-infra.ir.yaml")
+    results = analyze_doc(doc)
+    assert len(results) == 4
+    inf = next(r for r in results if r.knowledge == "informed" and r.egress == "assumed_open")
+    assert inf.profile_id == "insider-auto"
+    assert len(inf.facts) > 0
+    # net-lab 내 R10 + R10b로 DC(dc01) admin 거점을 얻으면 R8이 도메인(dom-sevenkingdoms)을 장악해야 함
+    assert Fact.controls("dom-sevenkingdoms") in inf.facts
+
+
+def test_r3_identity_actions_and_group_inherit():
+    """R3가 reset_credential, add_member 및 group: 대상 비-admin 상속을 처리하는지 검증."""
+    doc = {
+        "ir_version": "0.2",
+        "groups": [{"id": "g-app", "kind": "security_group"}],
+        "assets": [
+            {"id": "ext", "type": "external"},
+            {"id": "u-help", "type": "identity", "kind": "user"},
+            {"id": "u-priv", "type": "identity", "kind": "user"},
+            {"id": "grp-adm", "type": "identity", "kind": "group"},
+            {"id": "srv", "type": "host", "role": "app_server", "groups": ["g-app"]},
+        ],
+        "relations": [
+            {"type": "has_permission", "from": "ext", "to": "u-help", "action": "delegate", "effect": "allow"},
+            {"type": "has_permission", "from": "u-help", "to": "u-priv", "action": "reset_credential", "effect": "allow"},
+            {"type": "has_permission", "from": "u-priv", "to": "grp-adm", "action": "add_member", "effect": "allow"},
+            {"type": "has_permission", "from": "grp-adm", "to": "group:g-app", "action": "execute", "effect": "allow"},
+        ],
+    }
+    res = run_variant(InfraGraph(doc), {"id": "ext", "start": ["ext"]}, "informed", "assumed_open")
+    assert Fact.acts_as("u-help") in res.facts
+    assert Fact.acts_as("u-priv") in res.facts
+    assert Fact.acts_as("grp-adm") in res.facts
+    assert Fact.foothold("srv", "user") in res.facts
+
+
+def test_r10_managed_service_and_auth_probability_diff():
+    """호스트 없는 managed_service 도달 및 인증 보호 서비스의 낮은 침해 확률 검증."""
+    doc = {
+        "ir_version": "0.2",
+        "assets": [
+            {"id": "ext", "type": "external"},
+            {"id": "saas", "type": "service", "kind": "managed_service", "port": 443, "config": {"access.anonymous": True}},
+            {"id": "db-host", "type": "host", "role": "db_server"},
+            {
+                "id": "svc-db",
+                "type": "service",
+                "kind": "network_service",
+                "port": 5432,
+                "config": {"auth.methods": ["password"], "auth.default_credentials": False, "auth.lockout": True},
+            },
+        ],
+        "relations": [
+            {"type": "reaches", "from": "ext", "to": "saas", "ports": [443]},
+            {"type": "reaches", "from": "ext", "to": "db-host", "ports": [5432]},
+            {"type": "runs", "from": "db-host", "to": "svc-db"},
+        ],
+    }
+    res = run_variant(InfraGraph(doc), {"id": "ext", "start": ["ext"]}, "informed", "assumed_open")
+    assert Fact.foothold("saas", "user") in res.facts
+    assert Fact.foothold("db-host", "user") in res.facts
+    p_saas = res.derivations[Fact.foothold("saas", "user")][0].prob
+    p_db = res.derivations[Fact.foothold("db-host", "user")][0].prob
+    assert p_db < p_saas

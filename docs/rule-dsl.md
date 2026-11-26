@@ -70,6 +70,7 @@ rules:
 3. **`knows` 전제의 명시적 DAG 편입**: `uninformed` 변형에서는 `knows(target)`을 단순 필터가 아니라 `DerivationStep.premises`에 포함해야 정찰 확률이 경로 확률에 정상 반영된다.
 4. **거부 우선(`not_denied`) 및 암호화 키(`encrypted` + `key_ref`)**: `has_permission`은 동일 행위 또는 `admin`의 `deny` 엣지를 우선 검사해야 하며, `contains.encrypted`가 참이면 `read`에 `has_credential($key_ref)`가 추가 전제로 붙는다.
 5. **IR 확신도와의 결합**: 규칙 확률 = `(base 분포 표본 × modifiers × capability_factor) × Π(사용된 IR 관계/속성의 confidence)`.
+   - 참고: `probability.base`의 `beta` 분포 표본화는 **P3 몬테카를로 엔진**에서 수행하며, 현재 얇은 엔진(`thin.py`)은 `base`의 기대값(고정 소수) × `modifiers` × `capability_factor`로 근사한다.
 
 ---
 
