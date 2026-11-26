@@ -1,0 +1,308 @@
+rule_version: "0.1"
+rules:
+  - id: D2
+    name: "네트워크 도달 대상 발견"
+    category: discovery
+    attack_techniques: [T1046]
+    vars:
+      src: { type: asset }
+      dst: { type: asset }
+    when:
+      - neq: [$src, $dst]
+      - reaches: { from: $src, to: $dst }
+    requires:
+      - foothold($src, none)
+    adds:
+      - knows($dst)
+    probability:
+      base: { kind: beta, alpha: 8.5, beta: 1.5 }
+      capability_scale: false
+
+  - id: D3
+    name: "거점 내 실행 서비스·자격증명·저장소 식별"
+    category: discovery
+    attack_techniques: [T1082, T1083]
+    vars:
+      host: { type: asset, asset_type: host }
+      target: { type: asset }
+    when:
+      - any:
+          - relation: { type: runs, from: $host, to: $target }
+          - relation: { type: stores, from: $host, to: $target }
+          - relation: { type: hosts, from: $host, to: $target }
+    requires:
+      - foothold($host, user)
+    adds:
+      - knows($target)
+    probability:
+      base: { kind: beta, alpha: 8.5, beta: 1.5 }
+      capability_scale: false
+
+  - id: D4
+    name: "확보 신원의 권한 대상 조회"
+    category: discovery
+    attack_techniques: [T1087, T1069]
+    vars:
+      actor: { type: identity }
+      target: { type: asset }
+    when:
+      - any:
+          - relation: { type: authenticates_to, from: $actor, to: $target }
+          - relation: { type: has_permission, from: $actor, to: $target }
+    requires:
+      - acts_as($actor)
+    adds:
+      - knows($target)
+    probability:
+      base: { kind: beta, alpha: 9.0, beta: 1.0 }
+      capability_scale: false
+
+  - id: R1
+    name: "그룹 소속 권한 상속"
+    category: transition
+    attack_techniques: [T1078]
+    vars:
+      member: { type: identity }
+      group: { type: identity, kind: group }
+    when:
+      - relation: { type: member_of, from: $member, to: $group }
+    requires:
+      - acts_as($member)
+    adds:
+      - acts_as($group)
+    probability:
+      base: { kind: beta, alpha: 9.9, beta: 0.1 }
+      capability_scale: false
+
+  - id: R2
+    name: "정상 로그인 (유효 계정 원격 접속)"
+    category: transition
+    attack_techniques: [T1078, T1021, T1133]
+    vars:
+      actor: { type: identity }
+      src: { type: asset }
+      target: { type: asset }
+    when:
+      - relation: { type: authenticates_to, from: $actor, to: $target }
+      - reaches: { from: $src, to: $target }
+    requires:
+      - acts_as($actor)
+      - foothold($src, none)
+      - knows($target)
+    adds:
+      - foothold($target, user)
+    probability:
+      base: { kind: beta, alpha: 9.0, beta: 1.0 }
+      capability_scale: false
+      modifiers:
+        - when: { config: [$target, auth.mfa, true] }
+          factor: 0.40
+        - when: { config: [$actor, account.dormant, true] }
+          factor: 0.70
+
+  - id: R3
+    name: "정규화 권한 사용 (읽기·쓰기·실행·계정·그룹 조작)"
+    category: transition
+    attack_techniques: [T1098, T1530, T1039, T1037]
+    vars:
+      actor: { type: identity }
+      target: { type: asset }
+    when:
+      - relation: { type: has_permission, from: $actor, to: $target, effect: allow }
+      - not_denied: { from: $actor, to: $target }
+    requires:
+      - acts_as($actor)
+      - knows($target)
+    adds:
+      - foothold($target, user)
+    probability:
+      base: { kind: beta, alpha: 9.5, beta: 0.5 }
+      capability_scale: false
+
+  - id: R4
+    name: "서비스 실행 계정 탈취"
+    category: transition
+    attack_techniques: [T1055, T1134, T1543]
+    vars:
+      host: { type: asset, asset_type: host }
+      svc: { type: asset, asset_type: service }
+      acct: { type: identity }
+    when:
+      - relation: { type: runs, from: $host, to: $svc, as: $acct }
+    requires:
+      - foothold($host, admin)
+    adds:
+      - acts_as($acct)
+    probability:
+      base: { kind: beta, alpha: 9.0, beta: 1.0 }
+      capability_scale: false
+      modifiers:
+        - when: { config: [$host, host.privileged_process_protection, true] }
+          factor: 0.65
+
+  - id: R5
+    name: "로그인 세션·토큰 탈취"
+    category: transition
+    attack_techniques: [T1003, T1134, T1539, T1185]
+    vars:
+      actor: { type: identity }
+      target: { type: asset }
+    when:
+      - relation: { type: session, from: $actor, to: $target }
+    requires:
+      - foothold($target, admin)
+    adds:
+      - acts_as($actor)
+    probability:
+      base: { kind: beta, alpha: 6.5, beta: 3.5 }
+      capability_scale: false
+      modifiers:
+        - when: { config: [$target, host.credential_protection, true] }
+          factor: 0.50
+
+  - id: R6
+    name: "보관된 자격증명 추출"
+    category: transition
+    attack_techniques: [T1552, T1555, T1528, T1003]
+    vars:
+      asset: { type: asset }
+      cred: { type: asset, asset_type: credential }
+    when:
+      - relation: { type: stores, from: $asset, to: $cred }
+    requires:
+      - foothold($asset, admin)
+    adds:
+      - has_credential($cred)
+    probability:
+      base: { kind: beta, alpha: 9.0, beta: 1.0 }
+      capability_scale: false
+      modifiers:
+        - when: { config: [$asset, host.metadata_service_protection, true] }
+          factor: 0.45
+
+  - id: R7
+    name: "탈취 자격증명으로 신원 획득"
+    category: transition
+    attack_techniques: [T1078, T1528]
+    vars:
+      cred: { type: asset, asset_type: credential }
+      actor: { type: identity }
+    when:
+      - relation: { type: grants, from: $cred, to: $actor }
+    requires:
+      - has_credential($cred)
+    adds:
+      - acts_as($actor)
+    probability:
+      base: { kind: beta, alpha: 9.0, beta: 1.0 }
+      capability_scale: false
+
+  - id: R8
+    name: "도메인·그룹 장악 및 소속 호스트 제어"
+    category: transition
+    attack_techniques: [T1484, T1078]
+    vars:
+      mgr: { type: asset, asset_type: host }
+      grp: { type: group }
+    when:
+      - any:
+          - relation: { type: manages, from: $mgr, to: $grp }
+          - asset_role: { asset: $mgr, role: domain_controller, in_group: $grp }
+    requires:
+      - foothold($mgr, admin)
+    adds:
+      - controls($grp)
+    probability:
+      base: { kind: beta, alpha: 9.5, beta: 0.5 }
+      capability_scale: false
+
+  - id: R9
+    name: "저장소 데이터 접근"
+    category: transition
+    attack_techniques: [T1005, T1530, T1039]
+    vars:
+      holder: { type: asset }
+      store: { type: asset, asset_type: data_store }
+      data: { type: asset, asset_type: data }
+    when:
+      - relation: { type: contains, from: $store, to: $data }
+    requires:
+      - foothold($holder, admin)
+    adds:
+      - data_access($data, read)
+    probability:
+      base: { kind: beta, alpha: 9.8, beta: 0.2 }
+      capability_scale: false
+
+  - id: R10
+    name: "노출 서비스 침해"
+    category: transition
+    attack_techniques: [T1190, T1210]
+    vars:
+      src: { type: asset }
+      host: { type: asset, asset_type: host }
+      svc: { type: asset, asset_type: service }
+    when:
+      - neq: [$src, $host]
+      - reaches: { from: $src, to: $host }
+      - relation: { type: runs, from: $host, to: $svc }
+    requires:
+      - foothold($src, none)
+      - knows($host)
+    adds:
+      - foothold($host, user)
+    probability:
+      base: { kind: beta, alpha: 3.5, beta: 6.5 }
+      capability_scale: true
+      modifiers:
+        - when: { config: [$svc, app.secure_development, true] }
+          factor: 0.55
+        - when: { config: [$svc, network.application_filtering, true] }
+          factor: 0.70
+        - when: { config: [$host, host.patch_currency, lagging] }
+          factor: 1.80
+        - when: { config: [$host, host.patch_currency, current] }
+          factor: 0.75
+
+  - id: R10b
+    name: "로컬 권한 상승"
+    category: privilege_escalation
+    attack_techniques: [T1068, T1543]
+    vars:
+      host: { type: asset, asset_type: host }
+    when:
+      - asset_type: { asset: $host, type: host }
+    requires:
+      - foothold($host, user)
+    adds:
+      - foothold($host, admin)
+    probability:
+      base: { kind: beta, alpha: 3.0, beta: 7.0 }
+      capability_scale: true
+      modifiers:
+        - when: { config: [$host, host.patch_currency, lagging] }
+          factor: 2.15
+        - when: { config: [$host, host.patch_currency, current] }
+          factor: 0.65
+        - when: { config: [$host, host.os_hardening, strict] }
+          factor: 0.60
+        - when: { config: [$host, host.endpoint_protection, true] }
+          factor: 0.75
+
+  - id: R11
+    name: "관리 주체 경유 제어"
+    category: transition
+    attack_techniques: [T1072, T1037, T1556]
+    vars:
+      mgr: { type: asset }
+      target: { type: asset }
+    when:
+      - relation: { type: manages, from: $mgr, to: $target }
+    requires:
+      - foothold($mgr, admin)
+      - knows($target)
+    adds:
+      - foothold($target, admin)
+    probability:
+      base: { kind: beta, alpha: 9.5, beta: 0.5 }
+      capability_scale: false

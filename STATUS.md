@@ -3,11 +3,11 @@
 최종 갱신: 2026-11-26
 
 ## 현재 단계
-**P2 진행 중 — 얇은 엔진 MVP + WBS 2.2 규칙 형식 명세 완료 (11-26)** → 다음은 `WBS 2.3` 초기 규칙셋(`rules/`) 작성
+**P2 (공격 단계 규칙 DSL) 완료 (11-26)** → 다음은 `P3 엔진 MVP` (`WBS 3.1` IR 로더와 그래프 구성 / `3.2` 목표 자동 생성 / `3.3` 역방향 AND/OR DAG)
 
 ### 다음 세션에서 할 일
-1. `WBS 2.3`: `docs/rule-dsl.md` 형식으로 초기 규칙셋(`rules/` — R1~R11, R10b, D2~D4 + `docs/crosswalk/attack-techniques.md` 상태 전이 66개 중 핵심 기법) 작성 및 로더·검증 테스트
-2. `WBS 2.4`: 작성된 규칙셋이 IR 필드만으로 평가 가능한지 점검 및 `docs/ir-field-audit.md` 대조 갱신
+1. `WBS 3.1 ~ 3.2`: `src/scengen/engine/`에 규칙 기반 평가기(DSL 로더 `rules/` 연동) 및 목표 자동 생성기(`ir-spec.md` 8.4) 구현
+2. `WBS 3.3 ~ 3.4`: 역방향 AND/OR DAG + tabling, 몬테카를로 분포 기반 확률 계산 (`beta` 분포·IR `confidence`·`distribution` 표본화)
 3. `WBS 1.5d`: 틈틈이 기존 모델 비교 (`docs/model-comparison.md`: MAL coreLang, BloodHound OpenGraph)
 4. 원문 확보 시 추가 대조: KISA 주요정보통신기반시설 가이드, ISMS-P 원문, 윈도우 STIG
 
@@ -20,7 +20,7 @@
 | **M0.5 IR 검증 관문** | ✅ 11-21 | ATT&CK v20.1 완화책 44개: 첫 대조 불가 26 → 보강 후 **불가 0** (표현 가능 40, 일부 2, 범위 밖 2). 테스트 62개 통과 |
 | **1.6 참조 문서 대조 5종** | ✅ 11-21 | ATT&CK 기법 227, CIS Controls 153, D3FEND 271, 플랫폼 표본 124, 관리·앱 영역 70 → 모두 **불가 0**. 빈틈 28개 보강, 설정 키 44 → 65. 테스트 75개 통과 |
 | 1.5d 기존 모델 비교 | ⬜ | P2와 병행 |
-| P2 공격 단계 규칙 DSL | 🔄 | 2.1 완료(11-21), 얇은 엔진(`scengen analyze`)·2.2(`docs/rule-dsl.md`)·P2 보류/미정 필드 정리 완료(11-26) |
+| P2 공격 단계 규칙 DSL | ✅ 11-26 | 2.1(`attacker-state.md`), 2.2(`rule-dsl.md` + 얇은 엔진), 2.3(`rules/*.yaml` 20개 규칙), 2.4(`scengen rules` IR 어휘 검증) 완료 |
 | P3 ~ P7 | ⬜ | |
 
 ## M0.5 결과 요약

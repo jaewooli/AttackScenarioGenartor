@@ -129,6 +129,20 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_rules(args: argparse.Namespace) -> int:
+    from .rules import load_rules
+
+    res = load_rules()
+    for err in res.errors:
+        print(f"[error] {err}", file=sys.stderr)
+    print(
+        f"규칙 {len(res.rules)}개 로드 "
+        f"(참조 관계 {len(res.referenced_relations)}종, 설정 키 {len(res.referenced_configs)}종): "
+        f"{'통과' if res.ok else '미통과'}"
+    )
+    return 0 if res.ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="scengen")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -159,6 +173,9 @@ def main(argv: list[str] | None = None) -> int:
     p_ana.add_argument("file")
     p_ana.add_argument("--paths", action="store_true", help="달성된 목표의 대표 경로 출력")
     p_ana.set_defaults(func=_cmd_analyze)
+
+    p_rul = sub.add_parser("rules", help="규칙셋(rules/*.yaml) 로드 및 검증")
+    p_rul.set_defaults(func=_cmd_rules)
 
     args = parser.parse_args(argv)
     return args.func(args)

@@ -1,0 +1,112 @@
+rule_version: "0.1"
+rules:
+  - id: R12
+    name: "무차별 대입 로그인 시도"
+    category: transition
+    attack_techniques: [T1110]
+    vars:
+      src: { type: asset }
+      target: { type: asset, asset_type: service }
+      actor: { type: identity }
+    when:
+      - reaches: { from: $src, to: $target }
+      - relation: { type: authenticates_to, from: $actor, to: $target }
+    requires:
+      - foothold($src, none)
+      - knows($target)
+    adds:
+      - acts_as($actor)
+    probability:
+      base: { kind: beta, alpha: 1.5, beta: 8.5 }
+      capability_scale: true
+      modifiers:
+        - when: { config: [$target, auth.lockout, true] }
+          factor: 0.15
+        - when: { config: [$target, auth.mfa, true] }
+          factor: 0.10
+        - when: { config: [$target, auth.password_policy, strong] }
+          factor: 0.40
+
+  - id: R13
+    name: "내부 이름 해석 스푸핑·중간자 자격증명 획득"
+    category: transition
+    attack_techniques: [T1557]
+    vars:
+      src: { type: asset, asset_type: host }
+      victim: { type: asset, asset_type: host }
+      actor: { type: identity }
+    when:
+      - neq: [$src, $victim]
+      - relation: { type: session, from: $actor, to: $victim }
+      - config: [$src, network.legacy_name_resolution, true]
+    requires:
+      - foothold($src, user)
+    adds:
+      - acts_as($actor)
+    probability:
+      base: { kind: beta, alpha: 4.0, beta: 6.0 }
+      capability_scale: true
+      modifiers:
+        - when: { config: [$src, transport.signing, required] }
+          factor: 0.25
+
+  - id: R14
+    name: "피싱을 통한 사용자 단말 초기 침투"
+    category: transition
+    attack_techniques: [T1566, T1534]
+    vars:
+      src: { type: asset }
+      ws: { type: asset, asset_type: host }
+    when:
+      - asset_role: { asset: $ws, role: workstation }
+    requires:
+      - foothold($src, none)
+    adds:
+      - foothold($ws, user)
+    probability:
+      base: { kind: beta, alpha: 2.5, beta: 7.5 }
+      capability_scale: true
+      modifiers:
+        - when: { config: [$ws, org.user_training, regular] }
+          factor: 0.55
+        - when: { config: [$ws, mail.content_filtering, true] }
+          factor: 0.60
+        - when: { config: [$ws, host.execution_control, enforce] }
+          factor: 0.40
+
+  - id: R15
+    name: "신뢰 관계 경유 접근"
+    category: transition
+    attack_techniques: [T1199]
+    vars:
+      src: { type: asset }
+      target: { type: asset }
+    when:
+      - relation: { type: trusts, from: $target, to: $src }
+    requires:
+      - foothold($src, admin)
+      - knows($target)
+    adds:
+      - foothold($target, user)
+    probability:
+      base: { kind: beta, alpha: 5.5, beta: 4.5 }
+      capability_scale: false
+
+  - id: R16
+    name: "비암호화 구간 네트워크 스니핑"
+    category: transition
+    attack_techniques: [T1040]
+    vars:
+      src: { type: asset, asset_type: host }
+      svc: { type: asset, asset_type: service }
+      actor: { type: identity }
+    when:
+      - relation: { type: authenticates_to, from: $actor, to: $svc }
+      - config: [$svc, transport.encryption, none]
+    requires:
+      - foothold($src, admin)
+    adds:
+      - acts_as($actor)
+    probability:
+      base: { kind: beta, alpha: 4.5, beta: 5.5 }
+      capability_scale: false
