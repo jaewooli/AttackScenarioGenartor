@@ -37,6 +37,7 @@ rules:
       actor: { type: identity }
     when:
       - neq: [$src, $victim]
+      - same_group: [$src, $victim]
       - relation: { type: session, from: $actor, to: $victim }
       - config: [$src, network.legacy_name_resolution, true]
     requires:
@@ -55,12 +56,13 @@ rules:
     category: transition
     attack_techniques: [T1566, T1534]
     vars:
-      src: { type: asset }
+      ext: { type: asset, asset_type: external }
       ws: { type: asset, asset_type: host }
     when:
+      - asset_type: { asset: $ext, type: external }
       - asset_role: { asset: $ws, role: workstation }
     requires:
-      - foothold($src, none)
+      - foothold($ext, none)
     adds:
       - foothold($ws, user)
     probability:
@@ -101,6 +103,9 @@ rules:
       svc: { type: asset, asset_type: service }
       actor: { type: identity }
     when:
+      - any:
+          - same_group: [$src, $svc]
+          - reaches: { from: $src, to: $svc }
       - relation: { type: authenticates_to, from: $actor, to: $svc }
       - config: [$svc, transport.encryption, none]
     requires:

@@ -282,13 +282,20 @@ def run_variant(
                 priv, priv_conf, _ = unwrap_attr(r.get("privilege"), "user")
                 if not isinstance(priv, str):
                     priv = "user"
-                # target이 서비스면 실행 호스트의 포트/호스트로도 도달 검사
-                target_port = graph.assets.get(target_id, {}).get("port")
+                # target이 서비스면 실행 호스트의 포트/프로토콜로도 도달 검사
+                target_asset = graph.assets.get(target_id, {})
+                target_port = target_asset.get("port")
+                target_proto = target_asset.get("protocol")
                 reach_hosts = [target_id] + [h for h, _ in svc_hosts.get(target_id, [])]
                 for src_id, lvl in list(best_fh.items()):
                     src_fact = Fact.foothold(src_id, lvl)
                     for rh in reach_hosts:
-                        matches = graph.can_reach(src_id, rh, port=target_port if rh != target_id else None)
+                        matches = graph.can_reach(
+                            src_id,
+                            rh,
+                            port=target_port if rh != target_id else None,
+                            protocol=target_proto if rh != target_id else None,
+                        )
                         if matches:
                             p = round(obj_confidence(r) * priv_conf * max(m.confidence for m in matches), 4)
                             if add_step("R2", Fact.foothold(target_id, priv), (f, src_fact) + kp, p, f"{uid} → {target_id}"):
@@ -484,7 +491,8 @@ def run_variant(
                     continue
                 svc = graph.assets.get(svc_id, {})
                 port = svc.get("port")
-                matches = graph.can_reach(src_id, host_id, port=port)
+                proto = svc.get("protocol")
+                matches = graph.can_reach(src_id, host_id, port=port, protocol=proto)
                 if matches:
                     p = round(_exploit_prob(graph, host_id, svc_id, capability) * max(m.confidence for m in matches), 4)
                     if add_step("R10", Fact.foothold(host_id, "user"), (src_fact,) + kp, p, f"{src_id} → {host_id}:{svc_id}"):
@@ -496,7 +504,7 @@ def run_variant(
                 kp = _know_prem(facts, knowledge, svc_id)
                 if kp is None:
                     continue
-                matches = graph.can_reach(src_id, svc_id, port=svc.get("port"))
+                matches = graph.can_reach(src_id, svc_id, port=svc.get("port"), protocol=svc.get("protocol"))
                 if matches:
                     p = round(_exploit_prob(graph, None, svc_id, capability) * max(m.confidence for m in matches), 4)
                     if add_step("R10", Fact.foothold(svc_id, "user"), (src_fact,) + kp, p, f"{src_id} → {svc_id}"):

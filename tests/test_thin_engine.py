@@ -169,3 +169,36 @@ def test_r10_managed_service_and_auth_probability_diff():
     p_saas = res.derivations[Fact.foothold("saas", "user")][0].prob
     p_db = res.derivations[Fact.foothold("db-host", "user")][0].prob
     assert p_db < p_saas
+
+
+def test_reachability_respects_via_routes_via_and_protocol():
+    """via/routes_via 경유 장비 제외 및 protocol 불일치 시 도달 불가 처리 검증."""
+    base_doc = {
+        "ir_version": "0.2",
+        "groups": [{"id": "g-net", "kind": "subnet"}],
+        "assets": [
+            {"id": "ext", "type": "external"},
+            {"id": "lb", "type": "network_device", "role": "load_balancer"},
+            {"id": "gw", "type": "network_device", "role": "firewall"},
+            {"id": "web", "type": "host", "role": "web_server", "groups": ["g-net"]},
+            {"id": "svc-web", "type": "service", "kind": "web_app", "port": 443, "protocol": "tcp"},
+        ],
+        "relations": [
+            {"type": "reaches", "from": "ext", "to": "web", "ports": [443], "protocol": "tcp", "via": "lb"},
+            {"type": "routes_via", "from": "group:g-net", "to": "gw"},
+            {"type": "runs", "from": "web", "to": "svc-web"},
+        ],
+    }
+    # 정상 상태에서는 도달 가능
+    g_ok = InfraGraph(base_doc)
+    assert g_ok.can_reach("ext", "web", port=443, protocol="tcp")
+    # 프로토콜 불일치 시 도달 불가
+    assert not g_ok.can_reach("ext", "web", port=443, protocol="udp")
+
+    # via 장비(lb)가 scope.exclude로 제외되면 도달 불가
+    doc_no_lb = {**base_doc, "context": {"scope": {"exclude": ["lb"]}}}
+    assert not InfraGraph(doc_no_lb).can_reach("ext", "web", port=443, protocol="tcp")
+
+    # routes_via 장비(gw)가 scope.exclude로 제외되면 도달 불가
+    doc_no_gw = {**base_doc, "context": {"scope": {"exclude": ["gw"]}}}
+    assert not InfraGraph(doc_no_gw).can_reach("ext", "web", port=443, protocol="tcp")

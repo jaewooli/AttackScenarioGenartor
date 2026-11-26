@@ -17,6 +17,7 @@ CATEGORIES = {"transition", "privilege_escalation", "discovery"}
 FACT_KINDS = {"foothold", "acts_as", "has_credential", "controls", "data_access", "knows"}
 FACT_RE = re.compile(r"^([a-z_]+)\(([^)]+)\)$")
 TECH_RE = re.compile(r"^T\d{4}(?:\.\d{3})?$")
+VAR_RE = re.compile(r"\$([a-zA-Z_][a-zA-Z0-9_]*)")
 
 
 @dataclass
@@ -29,6 +30,19 @@ class RuleValidationResult:
     @property
     def ok(self) -> bool:
         return not self.errors
+
+
+def _collect_vars(obj: Any) -> set[str]:
+    found: set[str] = set()
+    if isinstance(obj, str):
+        found.update(VAR_RE.findall(obj))
+    elif isinstance(obj, list):
+        for item in obj:
+            found.update(_collect_vars(item))
+    elif isinstance(obj, dict):
+        for val in obj.values():
+            found.update(_collect_vars(val))
+    return found
 
 
 def _walk_when(clause: Any, errors: list[str], rels: set[str], cfgs: set[str], prefix: str) -> None:
@@ -62,18 +76,27 @@ def _walk_when(clause: Any, errors: list[str], rels: set[str], cfgs: set[str], p
             rels.add("reaches")
 
 
-def _validate_fact_expr(expr: str, errors: list[str], loc: str) -> None:
-    m = FACT_RE.match(expr.strip())
-    if not m:
-        errors.append(f"{loc}: 잘못된 Fact 형식 '{expr}'")
+def _validate_fact_items(items: Any, errors: list[str], loc: str) -> None:
+    if not isinstance(items, list):
+        errors.append(f"{loc}: 목록이어야 함")
         return
-    kind = m.group(1)
-    if kind not in FACT_KINDS:
-        errors.append(f"{loc}: 알 수 없는 Fact 종류 '{kind}'")
+    for idx, item in enumerate(items):
+        if isinstance(item, dict) and set(item.keys()) & {"any", "all"}:
+            for key in ("any", "all"):
+                if key in item:
+                    _validate_fact_items(item[key], errors, f"{loc}[{idx}].{key}")
+            continue
+        expr = str(item).strip()
+        m = FACT_RE.match(expr)
+        if not m:
+            errors.append(f"{loc}[{idx}]: 잘못된 Fact 형식 '{expr}'")
+            continue
+        if m.group(1) not in FACT_KINDS:
+            errors.append(f"{loc}[{idx}]: 알 수 없는 Fact 종류 '{m.group(1)}'")
 
 
 def load_rules(rules_dir: str | Path = RULES_DIR) -> RuleValidationResult:
-    """rules/*.yaml을 모두 읽어 규칙 형식과 IR 어휘 정합성을 검증한다."""
+    """rules/*.yaml을 모두 읽어 규칙 형식과 IR 어휘·변수 바인딩 정합성을 검증한다."""
     base = Path(rules_dir)
     res = RuleValidationResult()
     seen_ids: set[str] = set()
@@ -117,13 +140,27 @@ def load_rules(rules_dir: str | Path = RULES_DIR) -> RuleValidationResult:
                 if not TECH_RE.match(str(tid)):
                     res.errors.append(f"{rid}: 잘못된 ATT&CK 기법 ID '{tid}'")
 
-            for idx, expr in enumerate(rule.get("requires") or []):
-                _validate_fact_expr(str(expr), res.errors, f"{rid}.requires[{idx}]")
-            for idx, expr in enumerate(rule.get("adds") or []):
-                _validate_fact_expr(str(expr), res.errors, f"{rid}.adds[{idx}]")
+            _validate_fact_items(rule.get("requires") or [], res.errors, f"{rid}.requires")
+            _validate_fact_items(rule.get("adds") or [], res.errors, f"{rid}.adds")
 
             if "when" in rule:
                 _walk_when(rule["when"], res.errors, res.referenced_relations, res.referenced_configs, f"{rid}.when")
+
+            # 변수 선언 및 when 바인딩 검증
+            declared_vars = set((rule.get("vars") or {}).keys())
+            bound_vars = _collect_vars(rule.get("when"))
+            used_vars = bound_vars | _collect_vars(rule.get("requires")) | _collect_vars(rule.get("adds"))
+            for mod in (rule.get("probability") or {}).get("modifiers") or []:
+                if isinstance(mod, dict) and "when" in mod:
+                    used_vars |= _collect_vars(mod["when"])
+
+            undeclared = used_vars - declared_vars
+            if undeclared:
+                res.errors.append(f"{rid}: vars에 선언되지 않은 변수 사용 {sorted(undeclared)}")
+
+            unbound = (_collect_vars(rule.get("requires")) | _collect_vars(rule.get("adds"))) - bound_vars
+            if unbound:
+                res.errors.append(f"{rid}: when에서 바인딩되지 않은 변수 {sorted(unbound)}")
 
             prob = rule.get("probability") or {}
             base_dist = prob.get("base") or {}

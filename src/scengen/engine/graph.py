@@ -60,6 +60,12 @@ class InfraGraph:
         for r in self.relations:
             self.by_type[r["type"]].append(r)
 
+        # 그룹별 routes_via 원본 매핑 (경유 장비 제외 여부 판정용)
+        self._group_routes_via: dict[str, list[str]] = defaultdict(list)
+        for r in doc.get("relations") or []:
+            if r.get("type") == "routes_via":
+                self._group_routes_via[strip_group_prefix(r["from"])].append(r["to"])
+
         # 그룹 조상 캐시 (자신 포함)
         self._group_ancestors: dict[str, set[str]] = {}
         for gid in self.groups:
@@ -133,10 +139,27 @@ class InfraGraph:
             return unwrap_attr(self.defaults[key], default)
         return default, 0.0, "unknown"
 
-    def can_reach(self, src_asset: str, dst_asset: str, port: int | None = None) -> list[ReachMatch]:
-        """src_asset에서 dst_asset(특정 포트 옵션)으로 도달 가능한 reaches 엣지 목록."""
+    def can_reach(
+        self,
+        src_asset: str,
+        dst_asset: str,
+        port: int | None = None,
+        protocol: str | None = None,
+    ) -> list[ReachMatch]:
+        """src_asset에서 dst_asset(특정 포트·프로토콜 옵션)으로 도달 가능한 reaches 엣지 목록.
+
+        via 경유 장비나 routes_via 라우팅 장비가 scope.exclude로 제외된 경우 도달 불가로 처리한다.
+        """
         if src_asset == dst_asset:
             return [ReachMatch(src_asset, dst_asset, 1.0, {"type": "local"})]
+
+        # 출발·도착 그룹 중 한쪽에만 속한 그룹에 routes_via가 지정되어 있고, 그 장비가 모두 제외된 경우 도달 불가
+        src_groups = self.asset_groups(src_asset)
+        dst_groups = self.asset_groups(dst_asset)
+        for gid in (src_groups ^ dst_groups):
+            route_devs = self._group_routes_via.get(gid)
+            if route_devs and not any(d in self.assets for d in route_devs):
+                return []
 
         matches: list[ReachMatch] = []
         for r in self.by_type.get("reaches", []):
@@ -144,9 +167,16 @@ class InfraGraph:
                 continue
             if not self.matches_target(dst_asset, r["to"]):
                 continue
+            via = r.get("via")
+            if via is not None and via not in self.assets:
+                continue
             if port is not None and "ports" in r:
                 ports = r["ports"]
                 if isinstance(ports, list) and port not in ports:
+                    continue
+            if protocol is not None and "protocol" in r:
+                r_proto = r["protocol"]
+                if r_proto and r_proto != "any" and r_proto != protocol:
                     continue
             matches.append(ReachMatch(src_asset, dst_asset, obj_confidence(r), r))
         return matches

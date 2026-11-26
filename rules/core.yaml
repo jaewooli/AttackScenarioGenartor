@@ -100,21 +100,150 @@ rules:
         - when: { config: [$actor, account.dormant, true] }
           factor: 0.70
 
-  - id: R3
-    name: "정규화 권한 사용 (읽기·쓰기·실행·계정·그룹 조작)"
+  # ---- R3: 권한 정규화 어휘 기반 (대상 타입·행위별로 실행 가능하게 분해) ----
+  - id: R3-data-read
+    name: "권한 기반 저장소 데이터 읽기"
     category: transition
-    attack_techniques: [T1098, T1530, T1039, T1037]
+    attack_techniques: [T1530, T1039]
+    vars:
+      actor: { type: asset }
+      store: { type: asset, asset_type: data_store }
+      data: { type: asset, asset_type: data }
+    when:
+      - relation: { type: has_permission, from: $actor, to: $store, effect: allow, action_in: [read, admin, modify_permissions, take_ownership] }
+      - not_denied: { from: $actor, to: $store }
+      - relation: { type: contains, from: $store, to: $data, encrypted: false }
+    requires:
+      - any:
+          - acts_as($actor)
+          - foothold($actor, none)
+      - knows($store)
+    adds:
+      - data_access($data, read)
+    probability:
+      base: { kind: beta, alpha: 9.5, beta: 0.5 }
+      capability_scale: false
+
+  - id: R3-data-read-encrypted
+    name: "권한 기반 암호화 저장소 복호화 읽기"
+    category: transition
+    attack_techniques: [T1530, T1039]
+    vars:
+      actor: { type: asset }
+      store: { type: asset, asset_type: data_store }
+      data: { type: asset, asset_type: data }
+      key: { type: asset, asset_type: credential }
+    when:
+      - relation: { type: has_permission, from: $actor, to: $store, effect: allow, action_in: [read, admin, modify_permissions, take_ownership] }
+      - not_denied: { from: $actor, to: $store }
+      - relation: { type: contains, from: $store, to: $data, encrypted: true, key_ref: $key }
+    requires:
+      - acts_as($actor)
+      - has_credential($key)
+      - knows($store)
+    adds:
+      - data_access($data, read)
+    probability:
+      base: { kind: beta, alpha: 9.5, beta: 0.5 }
+      capability_scale: false
+
+  - id: R3-data-write
+    name: "권한 기반 저장소 데이터 쓰기"
+    category: transition
+    attack_techniques: [T1530, T1039]
+    vars:
+      actor: { type: identity }
+      store: { type: asset, asset_type: data_store }
+      data: { type: asset, asset_type: data }
+    when:
+      - relation: { type: has_permission, from: $actor, to: $store, effect: allow, action_in: [write, admin, modify_permissions, take_ownership] }
+      - not_denied: { from: $actor, to: $store }
+      - relation: { type: contains, from: $store, to: $data }
+    requires:
+      - acts_as($actor)
+      - knows($store)
+    adds:
+      - data_access($data, write)
+    probability:
+      base: { kind: beta, alpha: 9.5, beta: 0.5 }
+      capability_scale: false
+
+  - id: R3-host
+    name: "권한 기반 호스트·서비스 실행 제어"
+    category: transition
+    attack_techniques: [T1021, T1037]
     vars:
       actor: { type: identity }
       target: { type: asset }
     when:
-      - relation: { type: has_permission, from: $actor, to: $target, effect: allow }
+      - relation: { type: has_permission, from: $actor, to: $target, effect: allow, action_in: [execute, admin, modify_permissions, take_ownership] }
       - not_denied: { from: $actor, to: $target }
+      - any:
+          - asset_type: { asset: $target, type: host }
+          - asset_type: { asset: $target, type: service }
     requires:
       - acts_as($actor)
       - knows($target)
     adds:
       - foothold($target, user)
+    probability:
+      base: { kind: beta, alpha: 9.5, beta: 0.5 }
+      capability_scale: false
+
+  - id: R3-policy
+    name: "권한 기반 정책 객체 수정"
+    category: transition
+    attack_techniques: [T1037, T1484]
+    vars:
+      actor: { type: identity }
+      pol: { type: asset, asset_type: policy }
+    when:
+      - relation: { type: has_permission, from: $actor, to: $pol, effect: allow, action_in: [write, admin, modify_permissions, take_ownership] }
+      - not_denied: { from: $actor, to: $pol }
+      - asset_type: { asset: $pol, type: policy }
+    requires:
+      - acts_as($actor)
+      - knows($pol)
+    adds:
+      - foothold($pol, admin)
+    probability:
+      base: { kind: beta, alpha: 9.5, beta: 0.5 }
+      capability_scale: false
+
+  - id: R3-identity
+    name: "권한 기반 주체 위임·자격증명 초기화·그룹 추가"
+    category: transition
+    attack_techniques: [T1098, T1078]
+    vars:
+      actor: { type: identity }
+      target: { type: identity }
+    when:
+      - relation: { type: has_permission, from: $actor, to: $target, effect: allow, action_in: [reset_credential, delegate, add_member, admin, modify_permissions, take_ownership] }
+      - not_denied: { from: $actor, to: $target }
+      - asset_type: { asset: $target, type: identity }
+    requires:
+      - acts_as($actor)
+      - knows($target)
+    adds:
+      - acts_as($target)
+    probability:
+      base: { kind: beta, alpha: 9.5, beta: 0.5 }
+      capability_scale: false
+
+  - id: R3-group
+    name: "권한 기반 그룹 관리 제어"
+    category: transition
+    attack_techniques: [T1484, T1098]
+    vars:
+      actor: { type: identity }
+      grp: { type: group }
+    when:
+      - relation: { type: has_permission, from: $actor, to: $grp, effect: allow, action_in: [admin, modify_permissions, take_ownership] }
+      - not_denied: { from: $actor, to: $grp }
+    requires:
+      - acts_as($actor)
+    adds:
+      - controls($grp)
     probability:
       base: { kind: beta, alpha: 9.5, beta: 0.5 }
       capability_scale: false
@@ -216,18 +345,58 @@ rules:
       base: { kind: beta, alpha: 9.5, beta: 0.5 }
       capability_scale: false
 
-  - id: R9
-    name: "저장소 데이터 접근"
+  # ---- R9: 저장소 데이터 접근 (직접/호스팅, 비암호화/암호화 분해) ----
+  - id: R9-direct
+    name: "저장소 직접 관리자 데이터 접근"
     category: transition
     attack_techniques: [T1005, T1530, T1039]
     vars:
-      holder: { type: asset }
       store: { type: asset, asset_type: data_store }
       data: { type: asset, asset_type: data }
     when:
-      - relation: { type: contains, from: $store, to: $data }
+      - relation: { type: contains, from: $store, to: $data, encrypted: false }
+    requires:
+      - foothold($store, admin)
+    adds:
+      - data_access($data, read)
+    probability:
+      base: { kind: beta, alpha: 9.8, beta: 0.2 }
+      capability_scale: false
+
+  - id: R9-hosted
+    name: "호스팅 서버 경유 저장소 데이터 접근"
+    category: transition
+    attack_techniques: [T1005, T1530, T1039]
+    vars:
+      holder: { type: asset, asset_type: host }
+      store: { type: asset, asset_type: data_store }
+      data: { type: asset, asset_type: data }
+    when:
+      - relation: { type: hosts, from: $holder, to: $store }
+      - relation: { type: contains, from: $store, to: $data, encrypted: false }
     requires:
       - foothold($holder, admin)
+    adds:
+      - data_access($data, read)
+    probability:
+      base: { kind: beta, alpha: 9.8, beta: 0.2 }
+      capability_scale: false
+
+  - id: R9-hosted-encrypted
+    name: "호스팅 서버 경유 암호화 저장소 복호화 접근"
+    category: transition
+    attack_techniques: [T1005, T1530]
+    vars:
+      holder: { type: asset, asset_type: host }
+      store: { type: asset, asset_type: data_store }
+      data: { type: asset, asset_type: data }
+      key: { type: asset, asset_type: credential }
+    when:
+      - relation: { type: hosts, from: $holder, to: $store }
+      - relation: { type: contains, from: $store, to: $data, encrypted: true, key_ref: $key }
+    requires:
+      - foothold($holder, admin)
+      - has_credential($key)
     adds:
       - data_access($data, read)
     probability:
@@ -244,7 +413,7 @@ rules:
       svc: { type: asset, asset_type: service }
     when:
       - neq: [$src, $host]
-      - reaches: { from: $src, to: $host }
+      - reaches: { from: $src, to: $host, port: $svc.port, protocol: $svc.protocol }
       - relation: { type: runs, from: $host, to: $svc }
     requires:
       - foothold($src, none)
@@ -263,6 +432,31 @@ rules:
           factor: 1.80
         - when: { config: [$host, host.patch_currency, current] }
           factor: 0.75
+
+  - id: R10-managed
+    name: "관리형 서비스 직접 침해"
+    category: transition
+    attack_techniques: [T1190]
+    vars:
+      src: { type: asset }
+      svc: { type: asset, asset_type: service }
+    when:
+      - neq: [$src, $svc]
+      - asset_type: { asset: $svc, type: service }
+      - reaches: { from: $src, to: $svc, port: $svc.port, protocol: $svc.protocol }
+    requires:
+      - foothold($src, none)
+      - knows($svc)
+    adds:
+      - foothold($svc, user)
+    probability:
+      base: { kind: beta, alpha: 3.0, beta: 7.0 }
+      capability_scale: true
+      modifiers:
+        - when: { config: [$svc, app.secure_development, true] }
+          factor: 0.55
+        - when: { config: [$svc, network.application_filtering, true] }
+          factor: 0.70
 
   - id: R10b
     name: "로컬 권한 상승"
