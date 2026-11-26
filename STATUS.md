@@ -3,13 +3,13 @@
 최종 갱신: 2026-11-26
 
 ## 현재 단계
-**P2 (공격 단계 규칙 DSL) 완료 (11-26)** → 다음은 `P3 엔진 MVP` (`WBS 3.1` IR 로더와 그래프 구성 / `3.2` 목표 자동 생성 / `3.3` 역방향 AND/OR DAG)
+**P3 엔진 MVP 진행 중 — WBS 3.2(목표 자동 생성기) 완료 (11-26)** → 다음은 `WBS 3.1`(DSL 규칙 평가기) · `WBS 3.3`(역방향 AND/OR DAG + tabling)
 
 ### 다음 세션에서 할 일
-1. `WBS 3.1 ~ 3.2`: `src/scengen/engine/`에 규칙 기반 평가기(DSL 로더 `rules/` 연동) 및 목표 자동 생성기(`ir-spec.md` 8.4) 구현
-2. `WBS 3.3 ~ 3.4`: 역방향 AND/OR DAG + tabling, 몬테카를로 분포 기반 확률 계산 (`beta` 분포·IR `confidence`·`distribution` 표본화)
-3. `WBS 1.5d`: 틈틈이 기존 모델 비교 (`docs/model-comparison.md`: MAL coreLang, BloodHound OpenGraph)
-4. 원문 확보 시 추가 대조: KISA 주요정보통신기반시설 가이드, ISMS-P 원문, 윈도우 STIG
+1. `WBS 3.1`: `rules/*.yaml`을 직접 실행하는 범용 DSL 규칙 평가기(`src/scengen/engine/rule_eval.py`) 구현
+2. `WBS 3.3 ~ 3.4`: 역방향 AND/OR DAG + tabling, 몬테카를로 분포 기반 확률 계산(`beta` 분포·IR `confidence`/`distribution` 공유 표본화)
+3. `WBS 3.5 ~ 3.6`: 위험도(`P × b^level`)·top-k·변형 간 순위 차이 출력 및 GOAD end-to-end 실행
+4. `WBS 1.5d`: 틈틈이 기존 모델 비교 (`docs/model-comparison.md`: MAL coreLang, BloodHound OpenGraph)
 
 ## 진행 상황
 | 단계 | 상태 | 비고 |
@@ -21,7 +21,8 @@
 | **1.6 참조 문서 대조 5종** | ✅ 11-21 | ATT&CK 기법 227, CIS Controls 153, D3FEND 271, 플랫폼 표본 124, 관리·앱 영역 70 → 모두 **불가 0**. 빈틈 28개 보강, 설정 키 44 → 65. 테스트 75개 통과 |
 | 1.5d 기존 모델 비교 | ⬜ | P2와 병행 |
 | P2 공격 단계 규칙 DSL | ✅ 11-26 | 2.1(`attacker-state.md`), 2.2(`rule-dsl.md` + 얇은 엔진), 2.3(`rules/*.yaml` 29개 규칙), 2.4(`scengen rules` IR 어휘·변수 바인딩 검증) 완료 |
-| P3 ~ P7 | ⬜ | |
+| P3 엔진 MVP | 🔄 | 3.1(`graph.py` 진행), 3.2(`goals.py` 목표 자동 생성기 완료 11-26) |
+| P4 ~ P7 | ⬜ | |
 
 ## M0.5 결과 요약
 - 질문: "빠진 보안 설정이 있는가?" → 공인 목록(MITRE ATT&CK 완화책) 전체와 대조해서 답함

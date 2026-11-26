@@ -11,6 +11,7 @@ from collections import defaultdict
 from typing import Any
 
 from ..ir.validate import profile_variants
+from .goals import generate_auto_goals
 from .graph import InfraGraph, is_group_ref, strip_group_prefix
 from .model import (
     PRIVILEGE_ORDER,
@@ -702,34 +703,13 @@ def _eval_condition(
     return False, 0.0, []
 
 
-def _auto_goals(graph: InfraGraph) -> list[dict[str, Any]]:
-    """impact_goals가 없을 때 스펙 8.4에 따라 기본 목표를 생성한다."""
-    goals: list[dict[str, Any]] = []
-    for aid, a in graph.assets.items():
-        if a.get("type") == "data":
-            goals.append({
-                "id": f"auto-exfil-{aid}",
-                "harm": "exfiltrate",
-                "condition": {"exfiltrated": aid},
-                "impact": {"level": "medium", "source": "assumed"},
-            })
-        elif a.get("type") == "business_service":
-            goals.append({
-                "id": f"auto-disrupt-{aid}",
-                "harm": "disrupt",
-                "condition": {"disrupted": aid},
-                "impact": {"level": "medium", "source": "assumed"},
-            })
-    return goals
-
-
 def _evaluate_goals(
     graph: InfraGraph,
     facts: set[Fact],
     derivs: dict[Fact, list[DerivationStep]],
     egress: str,
 ) -> list[GoalOutcome]:
-    raw_goals = graph.doc.get("impact_goals") or _auto_goals(graph)
+    raw_goals = graph.doc.get("impact_goals") or generate_auto_goals(graph)
     outcomes: list[GoalOutcome] = []
     for g in raw_goals:
         ok, p, paths = _eval_condition(g["condition"], graph, facts, derivs, egress)
