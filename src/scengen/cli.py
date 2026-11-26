@@ -100,6 +100,35 @@ def _cmd_vocab(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_analyze(args: argparse.Namespace) -> int:
+    from .engine import analyze_doc
+    from .ir import load_ir
+
+    try:
+        doc = load_ir(args.file)
+    except OSError as e:
+        print(f"{args.file}: 파일을 열 수 없음: {e}", file=sys.stderr)
+        return 2
+    res = validate_file(args.file)
+    if not res.ok:
+        for err in res.errors:
+            print(f"{args.file}: {err}", file=sys.stderr)
+        return 1
+
+    variants = analyze_doc(doc)
+    for v in variants:
+        print(f"=== [{v.profile_id}] knowledge={v.knowledge}, egress={v.egress} (사실 {len(v.facts)}개) ===")
+        for g in v.goals:
+            mark = "달성" if g.achieved else "미달성"
+            print(f"  - {g.goal_id} ({g.harm}, impact={g.impact_level}): {mark} p={g.prob:.4f}")
+            if g.achieved and args.paths:
+                for idx, path in enumerate(g.paths, 1):
+                    print(f"    [경로 {idx}]")
+                    for step in path:
+                        print(f"      {step.rule_id} -> {step.conclusion} (p={step.prob}) [{step.note}]")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="scengen")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -125,6 +154,11 @@ def main(argv: list[str] | None = None) -> int:
     p_voc = sub.add_parser("vocab", help="설정 키 사전 출력")
     p_voc.add_argument("--markdown", action="store_true")
     p_voc.set_defaults(func=_cmd_vocab)
+
+    p_ana = sub.add_parser("analyze", help="얇은 엔진으로 IR 분석 실행")
+    p_ana.add_argument("file")
+    p_ana.add_argument("--paths", action="store_true", help="달성된 목표의 대표 경로 출력")
+    p_ana.set_defaults(func=_cmd_analyze)
 
     args = parser.parse_args(argv)
     return args.func(args)
