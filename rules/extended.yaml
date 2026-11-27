@@ -82,7 +82,7 @@ rules:
     attack_techniques: [T1199]
     vars:
       src: { type: asset }
-      target: { type: asset }
+      target: { type: asset, asset_type: host }   # 그룹(도메인) 간 신뢰는 소속 호스트로 펼친다. 신원에 거점을 만들지 않음
     when:
       - relation: { type: trusts, from: $target, to: $src }
     requires:

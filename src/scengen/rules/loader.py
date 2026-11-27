@@ -16,6 +16,13 @@ RULES_DIR = Path(__file__).resolve().parents[3] / "rules"
 CATEGORIES = {"transition", "privilege_escalation", "discovery"}
 FACT_KINDS = {"foothold", "acts_as", "has_credential", "controls", "data_access", "knows"}
 FACT_RE = re.compile(r"^([a-z_]+)\(([^)]+)\)$")
+# 평가기(engine/rule_eval.py)가 실행할 수 있는 when 절. 여기 없는 절은 조용히 무시되지 않도록 오류로 처리한다.
+WHEN_CLAUSES = {
+    "relation", "reaches", "config", "config_set", "not_denied", "neq", "eq",
+    "same_group", "asset_type", "asset_role", "in_group", "group_parent",
+    "any", "all", "not",
+}
+VAR_TYPES = {"asset", "identity", "group", "level", "value"}
 TECH_RE = re.compile(r"^T\d{4}(?:\.\d{3})?$")
 VAR_RE = re.compile(r"\$([a-zA-Z_][a-zA-Z0-9_]*)")
 
@@ -54,7 +61,12 @@ def _walk_when(clause: Any, errors: list[str], rels: set[str], cfgs: set[str], p
         errors.append(f"{prefix}: when 절은 매핑이어야 함")
         return
     for k, v in clause.items():
-        if k in ("any", "all"):
+        if k not in WHEN_CLAUSES:
+            errors.append(f"{prefix}: 알 수 없는 when 절 '{k}'")
+            continue
+        if k == "not":
+            _walk_when(v, errors, rels, cfgs, f"{prefix}.not")
+        elif k in ("any", "all"):
             _walk_when(v, errors, rels, cfgs, f"{prefix}.{k}")
         elif k == "relation":
             if not isinstance(v, dict) or "type" not in v:
@@ -64,8 +76,8 @@ def _walk_when(clause: Any, errors: list[str], rels: set[str], cfgs: set[str], p
                 rels.add(rtype)
                 if rtype not in RELATION_RULES:
                     errors.append(f"{prefix}.relation: 알 수 없는 관계 타입 '{rtype}'")
-        elif k == "config":
-            if not isinstance(v, list) or len(v) < 2:
+        elif k in ("config", "config_set"):
+            if not isinstance(v, list) or len(v) < (3 if k == "config" else 2):
                 errors.append(f"{prefix}.config: [$var, key, value] 형식 필요")
             else:
                 ckey = v[1]
@@ -95,8 +107,11 @@ def _validate_fact_items(items: Any, errors: list[str], loc: str) -> None:
             errors.append(f"{loc}[{idx}]: 알 수 없는 Fact 종류 '{m.group(1)}'")
 
 
-def load_rules(rules_dir: str | Path = RULES_DIR) -> RuleValidationResult:
-    """rules/*.yaml을 모두 읽어 규칙 형식과 IR 어휘·변수 바인딩 정합성을 검증한다."""
+def load_rules(rules_dir: str | Path = RULES_DIR, files: list[str] | None = None) -> RuleValidationResult:
+    """rules/*.yaml을 모두 읽어 규칙 형식과 IR 어휘·변수 바인딩 정합성을 검증한다.
+
+    files를 주면 그 파일명(예: ["core.yaml"])만 읽는다.
+    """
     base = Path(rules_dir)
     res = RuleValidationResult()
     seen_ids: set[str] = set()
@@ -106,6 +121,8 @@ def load_rules(rules_dir: str | Path = RULES_DIR) -> RuleValidationResult:
         return res
 
     for path in sorted(base.glob("*.yaml")):
+        if files is not None and path.name not in files:
+            continue
         doc = yaml.safe_load(path.read_text(encoding="utf-8"))
         if not isinstance(doc, dict) or doc.get("rule_version") != "0.1":
             res.errors.append(f"{path.name}: rule_version '0.1' 필요")
@@ -147,6 +164,10 @@ def load_rules(rules_dir: str | Path = RULES_DIR) -> RuleValidationResult:
                 _walk_when(rule["when"], res.errors, res.referenced_relations, res.referenced_configs, f"{rid}.when")
 
             # 변수 선언 및 when 바인딩 검증
+            for vname, vspec in (rule.get("vars") or {}).items():
+                vtype = (vspec or {}).get("type", "asset")
+                if vtype not in VAR_TYPES:
+                    res.errors.append(f"{rid}: 변수 ${vname}의 알 수 없는 type '{vtype}'")
             declared_vars = set((rule.get("vars") or {}).keys())
             bound_vars = _collect_vars(rule.get("when"))
             used_vars = bound_vars | _collect_vars(rule.get("requires")) | _collect_vars(rule.get("adds"))

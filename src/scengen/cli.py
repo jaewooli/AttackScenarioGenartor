@@ -101,7 +101,7 @@ def _cmd_vocab(args: argparse.Namespace) -> int:
 
 
 def _cmd_analyze(args: argparse.Namespace) -> int:
-    from .engine import analyze_doc
+    from .engine import analyze_doc, analyze_doc_rules
     from .ir import load_ir
 
     try:
@@ -115,7 +115,16 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
             print(f"{args.file}: {err}", file=sys.stderr)
         return 1
 
-    variants = analyze_doc(doc)
+    if args.engine == "thin":
+        variants = analyze_doc(doc)
+    else:
+        from .engine.rule_eval import RuleEvalError
+
+        try:
+            variants = analyze_doc_rules(doc)
+        except RuleEvalError as e:
+            print(f"rules/: {e}", file=sys.stderr)
+            return 1
     for v in variants:
         print(f"=== [{v.profile_id}] knowledge={v.knowledge}, egress={v.egress} (사실 {len(v.facts)}개) ===")
         for g in v.goals:
@@ -169,8 +178,12 @@ def main(argv: list[str] | None = None) -> int:
     p_voc.add_argument("--markdown", action="store_true")
     p_voc.set_defaults(func=_cmd_vocab)
 
-    p_ana = sub.add_parser("analyze", help="얇은 엔진으로 IR 분석 실행")
+    p_ana = sub.add_parser("analyze", help="IR 분석 실행 (기본: rules/*.yaml DSL 규칙 평가기)")
     p_ana.add_argument("file")
+    p_ana.add_argument(
+        "--engine", choices=["rules", "thin"], default="rules",
+        help="rules: DSL 규칙 평가기(기본), thin: 얇은 엔진(회귀 기준선)",
+    )
     p_ana.add_argument("--paths", action="store_true", help="달성된 목표의 대표 경로 출력")
     p_ana.set_defaults(func=_cmd_analyze)
 

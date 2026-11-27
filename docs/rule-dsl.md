@@ -53,8 +53,8 @@ rules:
 | `name` | 예 | 사람이 읽는 규칙 이름 |
 | `category` | 예 | `transition`(상태 전이), `privilege_escalation`(권한 상승), `discovery`(정찰·발견) |
 | `attack_techniques` | 아니오 | 관련 MITRE ATT&CK 기법 ID 목록 |
-| `vars` | 예 | 바인딩 변수 선언 (`asset`, `group`, `identity` 등) |
-| `when` | 예 | IR 그래프 조건 (`relation`, `reaches`, `config`, `not_denied`, `neq`) |
+| `vars` | 예 | 바인딩 변수 선언. `type`: `asset`, `identity`, `group`(그룹 id), `level`(권한 수준), `value`(관계 속성 값). `asset_type`, `kind`로 범위 제한 |
+| `when` | 예 | IR 그래프 조건. 사용할 수 있는 절은 6장 표 (로더가 그 밖의 절을 오류로 처리) |
 | `requires` | 예 | 공격자 상태(`Fact`) 전제조건 목록 (`docs/attacker-state.md` 어휘 사용) |
 | `adds` | 예 | 규칙 성공 시 추가되는 결론 `Fact` |
 | `probability` | 예 | 성공 확률 분포(`base`), `capability_scale`, 조건별 승수(`modifiers`) |
@@ -97,3 +97,53 @@ rules:
 | `asset.business_service.downtime_impact` | `per_hour` 등급(`low/medium/high/critical`)을 자동 생성 `disrupt` 목표의 `impact.level` 기본값으로 매핑 |
 | `context.analysis` | `focus_categories` 등 목표 생성기(G)의 필터 및 우선순위 가중치 |
 | `context.organization` | `priorities` (`C/I/A: low|medium|high`)를 목표의 `harm` 축별 위험도 가중치로 반영 |
+
+---
+
+## 6. 규칙 평가기 실행 의미 (WBS 3.1, `src/scengen/engine/rule_eval.py`)
+
+`scengen analyze`의 기본 엔진. 얇은 엔진(`--engine thin`)은 회귀 기준선으로 남긴다.
+`core.yaml`만 쓰면 두 샘플의 모든 변형에서 사실 집합이 얇은 엔진과 **정확히 같다** (`tests/test_rule_eval.py`).
+
+### 6.1 규칙 1건의 평가 순서
+1. `requires`의 사실 패턴(`knows` 제외)을 현재 사실 집합과 맞춰 변수를 묶는다. `any`는 대안 중 하나.
+2. `when` 절을 계획기가 고른 순서로 평가한다: 변수가 모두 묶인 절 → 생성 절(`relation`, `asset_type`, `asset_role`, `in_group`, `group_parent`) → 나머지(필요하면 변수 도메인을 열거).
+3. `knows` 전제를 확인한다. `uninformed` 변형에서만 전제로 붙고, `informed`에서는 빠진다. `discovery` 규칙은 `uninformed`에서만 돈다.
+4. `adds`의 사실을 만든다. 결론이 전제에 이미 있으면 만들지 않는다 (예: admin 거점에서 R10b).
+5. 고정점까지 반복한다. 같은 (규칙, 결론, 전제)는 확률이 가장 높은 바인딩 하나만 남긴다.
+
+### 6.2 사실 패턴
+| 패턴 | 의미 |
+|---|---|
+| `foothold($x, L)` (requires) | 수준 L **이상**인 거점 중 자산별 최고 수준 사실 하나와 맞춘다 |
+| `foothold($x, L)` (adds) | 정확히 수준 L. `L`은 `level` 변수일 수 있다 (예: R2의 `privilege: $lvl`) |
+| 그 밖 | 인자가 모두 같은 사실과 맞춘다 |
+
+### 6.3 when 절
+| 절 | 형식 | 의미 |
+|---|---|---|
+| `relation` | `{type, from, to, <속성>: 값/$var, action_in, expand_groups}` | 관계 1건과 맞춘다. 속성 생략 시 기본값: `effect=allow`, `action=read`, `encrypted=false`, `privilege=user`, `frequency=unknown`. `$var` 값은 속성을 변수에 묶는다. 끝점이 `group:` 참조면 그룹 변수는 그룹 id, 자산 변수는 소속 자산으로 펼친다 (`inherit: false` 또는 `expand_groups: false`면 펼치지 않음). `from`/`to`를 생략하면 아무 값 |
+| `reaches` | `{from, to, port, protocol}` | `InfraGraph.can_reach`. `$svc.port`처럼 자산 속성을 쓸 수 있다 |
+| `config` | `[$x, key, value]` | 설정 값(자산 > 그룹 > `context.defaults`)이 value와 같음 |
+| `config_set` | `[$x, key]` | 설정 값이 비어 있지 않음 |
+| `not_denied` | `{from, to}` | 앞서 맞춘 허용 권한과 같은 행위(또는 `admin`)의 `deny` 엣지가 없음 |
+| `neq` / `eq` | `[a, b]` | 값 비교 |
+| `same_group` | `[$a, $b]` | 직접 소속 그룹이 하나 이상 겹침 |
+| `asset_type` | `{asset, type}` | 자산 타입 |
+| `asset_role` | `{asset, role, in_group, group_kind}` | 자산 역할. `in_group`은 직접 소속 그룹을 묶고 `group_kind`로 거른다 |
+| `in_group` | `{asset, group}` | 조상 그룹 포함 소속 |
+| `group_parent` | `{child, parent}` | 그룹 계층 |
+| `any` / `all` / `not` | 절 목록 / 절 | 합집합 / 모두 / 존재하지 않음(안쪽 변수는 밖으로 묶이지 않음) |
+
+### 6.4 확률 (WBS 3.4 전까지의 점 추정)
+`p = min(0.99, mean(base) × Π(일치한 modifiers) × (capability_scale이면 역량 계수) × Π(사용한 관계·도달성·설정의 confidence))`
+- 조건부 권한(`has_permission.condition`)은 조건 충족 여부를 모르므로 × 0.7.
+- 유도 단계의 `source_relations`에 사용한 IR 근거(`관계타입:from->to`, `config:자산.키`)를 기록한다. 가정 표시·정보 가치(P7)의 입력.
+- 얇은 엔진과 확률이 다른 곳: R10(인증 서비스 승수가 규칙 파일로 옮겨지며 근사가 바뀜), R5(빈도를 승수로 표현), R2/R8(base 기대값 사용). 사실 집합은 같다.
+
+### 6.5 재현성
+사실·자산·관계를 항상 정해진 순서로 순회한다. `PYTHONHASHSEED`가 달라도 유도 단계 목록이 같다 (테스트로 확인).
+
+### 6.6 WBS 3.1에서 규칙 파일에 반영한 것
+얇은 엔진에는 있었으나 규칙 파일에 없던 의미를 옮겼다: R2 권한 수준(`privilege`)·서비스 로그인(`R2-service`), R3 외부 주체·직접 데이터·execute/admin 분리·`add_member`는 그룹만, R5 세션 빈도, R8 하위 그룹·소속 호스트(`R8-subgroup`, `R8-members`)와 DC→도메인 한정, R9 쓰기·직접 암호화, R10 인증 승수, R10-managed는 실행 호스트 없는 서비스만, R11은 그룹 대상 제외.
+확장 규칙 R15는 대상을 호스트로 제한했다 (도메인 간 `trusts`를 펼치면 신원에 거점이 생기던 오류).

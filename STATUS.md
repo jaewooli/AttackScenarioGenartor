@@ -1,14 +1,14 @@
 # STATUS
 
-최종 갱신: 2026-11-26
+최종 갱신: 2026-11-27
 
 ## 현재 단계
-**P3 엔진 MVP 진행 중 — WBS 3.2(목표 자동 생성기) 완료 (11-26)** → 다음은 `WBS 3.1`(DSL 규칙 평가기) · `WBS 3.3`(역방향 AND/OR DAG + tabling)
+**P3 엔진 MVP 진행 중 — WBS 3.1(DSL 규칙 평가기)·3.2(목표 자동 생성기) 완료 (11-27)** → 다음은 `WBS 3.3`(역방향 AND/OR DAG + tabling)
 
 ### 다음 세션에서 할 일
-1. `WBS 3.1`: `rules/*.yaml`을 직접 실행하는 범용 DSL 규칙 평가기(`src/scengen/engine/rule_eval.py`) 구현
-2. `WBS 3.3 ~ 3.4`: 역방향 AND/OR DAG + tabling, 몬테카를로 분포 기반 확률 계산(`beta` 분포·IR `confidence`/`distribution` 공유 표본화)
-3. `WBS 3.5 ~ 3.6`: 위험도(`P × b^level`)·top-k·변형 간 순위 차이 출력 및 GOAD end-to-end 실행
+1. `WBS 3.3`: 역방향 AND/OR DAG + tabling. 지금은 평가기가 정방향 고정점으로 사실·유도 단계를 만들고, 목표 판정은 얇은 엔진 함수(`thin._evaluate_goals`)를 빌려 쓴다. 목표에서 거꾸로 펼치는 DAG로 바꾼다
+2. `WBS 3.4`: 몬테카를로 확률 (`beta` 분포 표본화, IR `confidence`/`distribution` 공유 표본). 평가기의 확률은 아직 base 기대값 점 추정
+3. `WBS 3.5 ~ 3.6`: 위험도(`P × b^level`)·top-k·변형 간 순위 차이 출력 및 GOAD end-to-end 실행. **먼저 GOAD 목표 문제 해결 필요** (아래 "막힌 것")
 4. `WBS 1.5d`: 틈틈이 기존 모델 비교 (`docs/model-comparison.md`: MAL coreLang, BloodHound OpenGraph)
 
 ## 진행 상황
@@ -21,7 +21,7 @@
 | **1.6 참조 문서 대조 5종** | ✅ 11-21 | ATT&CK 기법 227, CIS Controls 153, D3FEND 271, 플랫폼 표본 124, 관리·앱 영역 70 → 모두 **불가 0**. 빈틈 28개 보강, 설정 키 44 → 65. 테스트 75개 통과 |
 | 1.5d 기존 모델 비교 | ⬜ | P2와 병행 |
 | P2 공격 단계 규칙 DSL | ✅ 11-26 | 2.1(`attacker-state.md`), 2.2(`rule-dsl.md` + 얇은 엔진), 2.3(`rules/*.yaml` 29개 규칙), 2.4(`scengen rules` IR 어휘·변수 바인딩 검증) 완료 |
-| P3 엔진 MVP | 🔄 | 3.1(`graph.py` 진행), 3.2(`goals.py` 목표 자동 생성기 완료 11-26) |
+| P3 엔진 MVP | 🔄 | 3.1(`rule_eval.py` DSL 규칙 평가기 완료 11-27: core 규칙 사실 집합이 얇은 엔진과 10개 변형 모두 일치, 테스트 95개), 3.2(`goals.py` 완료 11-26) |
 | P4 ~ P7 | ⬜ | |
 
 ## M0.5 결과 요약
@@ -51,7 +51,7 @@
 - 완화책 대조: `.venv/bin/scengen mitigations` / 문서 재생성: `scengen mitigations --markdown > docs/mitigation-coverage.md`, `scengen vocab --markdown > docs/config-keys.md`
 
 ## 막힌 것 / 확인 필요
-- 없음
+- **GOAD에서 목표가 0개** (WBS 3.6 전에 해결 필요): GOAD 샘플에는 `data`·`business_service`가 없어서 목표 자동 생성기(스펙 8.4)가 목표를 하나도 만들지 않는다. 얇은 엔진도 같은 상태였다 (기존 테스트는 `controls(도메인)` 사실만 확인). 도메인 장악(`controls(directory_domain)`)을 자동 목표로 만들지, GOAD 샘플에 목표를 명시할지 정해야 한다. 4.1 정답 세트와도 연결된다
 
 ## 결정 기록
 | 날짜 | 결정 | 이유 |
@@ -94,6 +94,9 @@
 | 2026-11-21 | 라이선스가 제한된 기준(CIS)은 번호와 자체 요약만 저장 | CC BY-NC-ND 4.0, 원문 게시·2차 저작 제한 |
 | 2026-11-21 | 데이터 흐름 엣지, 방어 무력화 상태, 인증서 템플릿 노드는 P2에서 결정 | 규칙이 필요로 하는지 보고 정함 |
 | 2026-11-26 | 얇은 엔진 검증으로 로컬 권한 상승(`R10b`) 규칙 필수 확인 및 `knows` 전제의 DAG 편입 확정 | `R10`(user) → `R4~R11`(admin) 연쇄 연결 및 `uninformed` 확률 차별화 필요 |
+| 2026-11-27 | `scengen analyze` 기본 엔진을 DSL 규칙 평가기로 바꾸고 얇은 엔진은 `--engine thin` 회귀 기준선으로 유지 | 규칙을 데이터로 두어야 재현·검토·확장이 쉽다. 기준선과의 사실 집합 일치를 테스트로 고정 |
+| 2026-11-27 | 평가기는 로더가 허용한 when 절만 실행하고, 모르는 절은 로더가 오류로 처리 | 오타 난 절이 조용히 무시되면 규칙이 의도보다 넓게 발동함 |
+| 2026-11-27 | 얇은 엔진에만 있던 의미를 규칙 파일로 옮김 (R2-service, R3 분해, R8-subgroup/members, R9 쓰기 등. 규칙 29 → 39개) | 평가기가 규칙 파일만 읽어도 같은 결과를 내야 함. 상세는 `docs/rule-dsl.md` 6.6 |
 | 2026-11-26 | P2 보류 3건(데이터 흐름 엣지, 방어 무력화 상태, 인증서 템플릿 노드) MVP 보류 확정, 의미 미정 7개 필드 정의 (`docs/rule-dsl.md`) | 얇은 엔진과 현 IR 스펙으로 유출·권한·역량 계산이 충분히 동작함을 확인 |
 
 ## 조사 요약 (P0)

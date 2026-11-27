@@ -726,10 +726,9 @@ def _evaluate_goals(
     return outcomes
 
 
-def analyze_doc(doc: dict[str, Any]) -> list[VariantResult]:
-    """IR 문서의 모든 공격자 프로필 × 분석 변형을 실행한다."""
-    graph = InfraGraph(doc)
-    profiles = doc.get("attacker_profiles")
+def resolve_profiles(graph: InfraGraph) -> list[dict[str, Any]]:
+    """IR의 attacker_profiles, 없으면 자동 후보(외부 노드 또는 내부 단말)를 돌려준다."""
+    profiles = graph.doc.get("attacker_profiles")
     if not profiles:
         ext_ids = [aid for aid, a in graph.assets.items() if a.get("type") == "external"]
         if ext_ids:
@@ -748,6 +747,13 @@ def analyze_doc(doc: dict[str, Any]) -> list[VariantResult]:
                 "initial_privilege": "user",
                 "capability": "medium",
             }]
+    return list(profiles)
+
+
+def analyze_doc(doc: dict[str, Any]) -> list[VariantResult]:
+    """IR 문서의 모든 공격자 프로필 × 분석 변형을 실행한다."""
+    graph = InfraGraph(doc)
+    profiles = resolve_profiles(graph)
     results: list[VariantResult] = []
     for prof in profiles:
         for var in profile_variants(prof):
