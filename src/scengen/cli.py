@@ -178,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     p_voc.add_argument("--markdown", action="store_true")
     p_voc.set_defaults(func=_cmd_vocab)
 
-    p_ana = sub.add_parser("analyze", help="IR 분석 실행 (기본: rules/*.yaml DSL 규칙 평가기)")
+    p_ana = sub.add_parser("analyze", help="IR 분석 실행 (기본: src/scengen/rules/*.yaml DSL 규칙 평가기)")
     p_ana.add_argument("file")
     p_ana.add_argument(
         "--engine", choices=["rules", "thin"], default="rules",
@@ -187,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     p_ana.add_argument("--paths", action="store_true", help="달성된 목표의 대표 경로 출력")
     p_ana.set_defaults(func=_cmd_analyze)
 
-    p_rul = sub.add_parser("rules", help="규칙셋(rules/*.yaml) 로드 및 검증")
+    p_rul = sub.add_parser("rules", help="규칙셋(src/scengen/rules/*.yaml) 로드 및 검증")
     p_rul.set_defaults(func=_cmd_rules)
 
     args = parser.parse_args(argv)

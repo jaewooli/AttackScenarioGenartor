@@ -2,6 +2,7 @@
 
 사용자가 impact_goals를 생략하면 IR의 data, business_service, identifiers 겹침을
 바탕으로 exfiltrate, tamper, disrupt 및 결합 목표를 자동 생성한다.
+디렉터리 도메인(`directory_domain` 그룹)마다 도메인 장악(misuse) 목표도 만든다 (스펙 8.4 6항).
 """
 
 from __future__ import annotations
@@ -118,6 +119,18 @@ def generate_auto_goals(graph: InfraGraph) -> list[dict[str, Any]]:
                 "condition": {"disrupted": aid},
                 "impact": {"level": level, "source": src},
             })
+
+    # 디렉터리 도메인 장악: 조직의 공식 신원 체계 자체를 오용할 수 있는 상태 (스펙 8.1, 8.4 6항)
+    for gid, grp in graph.groups.items():
+        if grp.get("kind") != "directory_domain":
+            continue
+        goals.append({
+            "id": f"auto-takeover-{gid}",
+            "harm": "misuse",
+            "description": f"디렉터리 도메인 장악: {gid}",
+            "condition": {"controls": f"group:{gid}"},
+            "impact": {"level": "critical", "source": "assumed"},
+        })
 
     # identifiers 겹침 기반 결합 목표 후보 생성
     seen_pairs: set[tuple[str, str]] = set()

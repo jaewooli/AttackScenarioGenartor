@@ -1,4 +1,4 @@
-"""규칙셋(rules/*.yaml) 로드·문법·IR 어휘·변수 바인딩 정합성 검증 테스트 (WBS 2.3 / 2.4)."""
+"""규칙셋(src/scengen/rules/*.yaml) 로드·문법·IR 어휘·변수 바인딩 정합성 검증 테스트 (WBS 2.3 / 2.4)."""
 
 from scengen.rules import load_rules
 

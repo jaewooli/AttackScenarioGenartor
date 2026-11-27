@@ -45,7 +45,7 @@
 | LoD | L0 토폴로지 ~ L3 코드. 자산별로 혼합, 모드 구분 없음 |
 | 권한 | (주체, 추상 행위, 대상, 조건, 허용/거부)로 정규화, 펼치지 않음 |
 | 데이터 | `data`(무엇)와 `data_store`(어디) 분리 |
-| 목표 | "여기서 멈춰도 피해가 생기는 상태". 대상 × 피해 행위, AND/OR 결합 |
+| 목표 | "여기서 멈춰도 피해가 생기는 상태". 대상 × 피해 행위, AND/OR 결합. 디렉터리 도메인 장악은 예외적으로 목표 |
 | 위험도 | P(목표) × 영향도. 확률은 분포 + 몬테카를로, 영향도는 로그 스케일(밑 미정) |
 | 탐색 | 목표에서 역방향 DAG, tabling, 단조성 가정 |
 | 맥락 | 사실/구조/파라미터/분석 설정으로 번역, 치환 불가는 분리된 LLM 검토 층 |
@@ -61,15 +61,19 @@
 | `STATUS.md` | 현재 단계, 진행 상황, 결정 기록, 막힌 것 |
 | `docs/ir-spec.md` | IR 스펙 (현재 v0.2) |
 | `docs/attacker-state.md` | 공격자 상태 모델 (WBS 2.1) |
+| `docs/rule-dsl.md` | 규칙 DSL 형식과 평가기 실행 의미 (WBS 2.2, 3.1) |
 | `docs/ir-field-audit.md` | IR 필드 감사 (엔진이 읽는가 × 입력에서 얻는가) |
 | `docs/mitigation-coverage.md` | ATT&CK 완화책 대조표 (**생성 문서**, 원본: `src/scengen/ir/mitigation_map.yaml`) |
 | `docs/config-keys.md` | 설정 키 사전 (**생성 문서**, 원본: `src/scengen/ir/vocab.py`) |
 | `docs/crosswalk/` | 참조 문서 대조표 (**생성 문서**, `README.md`만 손으로 씀). 원본: `src/scengen/ir/technique_map.yaml`, `crosswalk_d3fend.yaml`, `crosswalk/*.yaml` |
 | `docs/samples/` | 샘플 인프라 IR |
 | `src/scengen/` | 패키지 (`ir/validate.py`: 검증기, `schema/`: JSON Schema, `cli.py`) |
+| `src/scengen/rules/*.yaml` | 공격 단계 규칙 (`core.yaml`: 기준 규칙, `extended.yaml`: 확장). 패키지에 포함되어 설치된다 |
+| `src/scengen/engine/` | `rule_eval.py`: 규칙 평가기(기본 엔진), `thin.py`: 얇은 엔진(회귀 기준선), `graph.py`, `goals.py`, `model.py` |
 | `tests/` | pytest |
 
-개발 명령: `.venv/bin/scengen validate <파일>`, `.venv/bin/pytest`
+개발 명령: `.venv/bin/scengen validate <파일>`, `.venv/bin/scengen rules`, `.venv/bin/scengen analyze <파일> [--paths] [--engine thin]`, `.venv/bin/pytest`
+- 규칙을 바꾸면 `scengen rules`와 `tests/test_rule_eval.py`(core 규칙 사실 집합 = 얇은 엔진)가 통과해야 한다.
 스펙을 바꾸면 JSON Schema와 검증기, 샘플을 함께 맞추고 테스트를 돌린다.
 - 스키마 필드를 추가·삭제하면 `docs/ir-field-audit.md` 표에 판정을 적어야 테스트가 통과한다.
 - 설정 키를 추가하면 `docs/samples/shop-hybrid.ir.yaml`에서 한 번 이상 쓰고, 생성 문서를 다시 만든다.

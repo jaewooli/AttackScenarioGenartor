@@ -19,6 +19,15 @@ PRIVILEGE_ORDER: dict[str, int] = {
 }
 
 
+# attacker_profile.capability → 역량 계수 (docs/rule-dsl.md 5장). 얇은 엔진과 규칙 평가기가 같이 쓴다
+CAPABILITY_FACTOR: dict[str, float] = {
+    "low": 0.45,
+    "medium": 0.70,
+    "high": 0.88,
+    "advanced": 0.96,
+}
+
+
 def priv_at_least(have: str, need: str) -> bool:
     """권한 수준이 요구 수준 이상인지 반환한다."""
     return PRIVILEGE_ORDER.get(have, -1) >= PRIVILEGE_ORDER.get(need, 99)

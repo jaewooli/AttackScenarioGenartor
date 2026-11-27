@@ -12,7 +12,7 @@ import yaml
 from ..ir.validate import RELATION_RULES
 from ..ir.vocab import CONFIG_KEYS
 
-RULES_DIR = Path(__file__).resolve().parents[3] / "rules"
+RULES_DIR = Path(__file__).resolve().parent  # 규칙 파일은 패키지 안(src/scengen/rules/*.yaml)에 둔다
 CATEGORIES = {"transition", "privilege_escalation", "discovery"}
 FACT_KINDS = {"foothold", "acts_as", "has_credential", "controls", "data_access", "knows"}
 FACT_RE = re.compile(r"^([a-z_]+)\(([^)]+)\)$")

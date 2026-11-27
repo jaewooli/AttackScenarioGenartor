@@ -27,3 +27,21 @@ def test_auto_goals_on_shop_hybrid_without_explicit_goals():
     assert comb["impact"]["level"] == "critical"
     # business_service disrupt + downtime_impact.per_hour(high) 반영
     assert by_id["auto-disrupt-biz-shop"]["impact"]["level"] == "high"
+
+
+def test_auto_domain_takeover_goals_on_goad():
+    """데이터·업무 서비스가 없는 GOAD에서도 도메인 장악 목표가 생기고, 내부자 변형에서 달성된다."""
+    from scengen.engine import analyze_doc_rules
+
+    doc = load_ir(SAMPLES / "goad-infra.ir.yaml")
+    goals = {g["id"]: g for g in generate_auto_goals(InfraGraph(doc))}
+    assert set(goals) == {"auto-takeover-dom-sevenkingdoms", "auto-takeover-dom-north", "auto-takeover-dom-essos"}
+    g = goals["auto-takeover-dom-sevenkingdoms"]
+    assert g["harm"] == "misuse"
+    assert g["condition"] == {"controls": "group:dom-sevenkingdoms"}
+    assert g["impact"] == {"level": "critical", "source": "assumed"}
+
+    inf = next(v for v in analyze_doc_rules(doc) if v.knowledge == "informed" and v.egress == "assumed_open")
+    outcome = {o.goal_id: o for o in inf.goals}
+    assert outcome["auto-takeover-dom-sevenkingdoms"].achieved
+    assert outcome["auto-takeover-dom-sevenkingdoms"].prob > 0

@@ -7,7 +7,7 @@
 
 ## 1. 규칙 파일 구조
 
-규칙은 `rules/*.yaml`에 목록(`rules: [...]`) 형태로 저장한다.
+규칙은 `src/scengen/rules/*.yaml`에 목록(`rules: [...]`) 형태로 저장한다.
 
 ```yaml
 rule_version: "0.1"

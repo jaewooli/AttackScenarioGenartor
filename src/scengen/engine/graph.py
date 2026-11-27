@@ -57,8 +57,14 @@ class InfraGraph:
         ]
 
         self.by_type: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        # (관계 타입, 끝점 참조) → by_type[타입] 안의 위치. 규칙 평가기가 관계 전체를 훑지 않도록
+        self.rel_index_from: dict[tuple[str, str], list[int]] = defaultdict(list)
+        self.rel_index_to: dict[tuple[str, str], list[int]] = defaultdict(list)
         for r in self.relations:
-            self.by_type[r["type"]].append(r)
+            lst = self.by_type[r["type"]]
+            self.rel_index_from[(r["type"], r["from"])].append(len(lst))
+            self.rel_index_to[(r["type"], r["to"])].append(len(lst))
+            lst.append(r)
 
         # 그룹별 routes_via 원본 매핑 (경유 장비 제외 여부 판정용)
         self._group_routes_via: dict[str, list[str]] = defaultdict(list)
@@ -161,10 +167,13 @@ class InfraGraph:
             if route_devs and not any(d in self.assets for d in route_devs):
                 return []
 
+        # 출발 자산 자신 또는 소속 그룹에서 시작하는 reaches만 후보 (IR 순서 유지)
+        pos: set[int] = set(self.rel_index_from.get(("reaches", src_asset), ()))
+        for gid in src_groups:
+            pos.update(self.rel_index_from.get(("reaches", GROUP_PREFIX + gid), ()))
+        all_reaches = self.by_type.get("reaches", [])
         matches: list[ReachMatch] = []
-        for r in self.by_type.get("reaches", []):
-            if not self.matches_target(src_asset, r["from"]):
-                continue
+        for r in (all_reaches[i] for i in sorted(pos)):
             if not self.matches_target(dst_asset, r["to"]):
                 continue
             via = r.get("via")

@@ -19,7 +19,7 @@ scengen = "scengen.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-scengen = ["schema/*.json", "data/*.json", "ir/*.yaml", "ir/crosswalk/*.yaml", "ir/crosswalk_d3fend.yaml"]
+scengen = ["schema/*.json", "data/*.json", "ir/*.yaml", "ir/crosswalk/*.yaml", "ir/crosswalk_d3fend.yaml", "rules/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

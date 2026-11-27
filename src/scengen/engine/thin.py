@@ -14,6 +14,7 @@ from ..ir.validate import profile_variants
 from .goals import generate_auto_goals
 from .graph import InfraGraph, is_group_ref, strip_group_prefix
 from .model import (
+    CAPABILITY_FACTOR,
     PRIVILEGE_ORDER,
     DerivationStep,
     Fact,
@@ -23,13 +24,6 @@ from .model import (
     priv_at_least,
     unwrap_attr,
 )
-
-CAPABILITY_FACTOR: dict[str, float] = {
-    "low": 0.45,
-    "medium": 0.70,
-    "high": 0.88,
-    "advanced": 0.96,
-}
 
 FREQUENCY_PROB: dict[str, float] = {
     "persistent": 0.95,
@@ -572,42 +566,82 @@ def _egress_prob(graph: InfraGraph, facts: set[Fact], data_id: str, egress: str)
     return (best_p > 0.0), best_p
 
 
-def _fact_prob(fact: Fact, derivs: dict[Fact, list[DerivationStep]], visiting: set[Fact] | None = None) -> float:
-    """DAG 위에서 사실의 단순 확률을 계산한다 (AND=곱, OR=noisy-OR, 순환 방지)."""
-    if visiting is None:
-        visiting = set()
-    if fact in visiting:
-        return 0.0
-    steps = derivs.get(fact)
-    if not steps:
-        return 0.0
+class _ProbTable:
+    """유도 그래프 위의 사실 확률 표 (WBS 3.3 전까지의 임시 계산, 다항 시간).
 
-    visiting = visiting | {fact}
-    fail_all = 1.0
-    for step in steps:
-        p = step.prob
-        for prem in step.premises:
-            p *= _fact_prob(prem, derivs, visiting)
-        fail_all *= max(0.0, 1.0 - p)
-    return round(1.0 - fail_all, 4)
+    이전 구현은 모든 단순 경로를 재귀로 따라가서 순환이 많은 그래프에서 지수 시간이 걸렸다
+    (GOAD 도메인 장악 목표에서 끝나지 않음). 여기서는:
+    1. 순위(rank) = 사실의 최단 유도 깊이. 전제가 없는 단계로 유도되면 0.
+    2. 순위가 낮은 순서로, 전제가 모두 자기보다 낮은 순위인 단계만 써서
+       P(f) = 1 − Π(1 − p_step × Π P(전제))  (AND=곱, OR=noisy-OR).
+    순환은 원천적으로 배제되지만, 더 깊은 우회 경로가 주는 확률은 일부 빠진다 (하한 쪽 근사).
+    """
+
+    def __init__(self, derivs: dict[Fact, list[DerivationStep]]) -> None:
+        rank: dict[Fact, int] = {}
+        changed = True
+        while changed:
+            changed = False
+            for fact, steps in derivs.items():
+                for step in steps:
+                    if any(pr not in rank for pr in step.premises):
+                        continue
+                    cand = 1 + max((rank[pr] for pr in step.premises), default=-1)
+                    if cand < rank.get(fact, cand + 1):
+                        rank[fact] = cand
+                        changed = True
+        self.rank = rank
+        self.prob: dict[Fact, float] = {}
+        self.best: dict[Fact, DerivationStep] = {}
+        for fact in sorted(rank, key=lambda f: (rank[f], str(f))):
+            fail_all = 1.0
+            best_val = -1.0
+            for step in derivs.get(fact, []):
+                if any(rank.get(pr, rank[fact]) >= rank[fact] for pr in step.premises):
+                    continue
+                v = step.prob
+                for pr in step.premises:
+                    v *= self.prob[pr]
+                fail_all *= max(0.0, 1.0 - v)
+                if v > best_val:
+                    best_val, self.best[fact] = v, step
+            self.prob[fact] = 1.0 - fail_all
 
 
-def _sample_path(fact: Fact, derivs: dict[Fact, list[DerivationStep]], visiting: set[Fact] | None = None) -> list[DerivationStep]:
-    """가장 확률이 높은 단일 유도 경로를 추출한다."""
-    if visiting is None:
-        visiting = set()
-    if fact in visiting:
-        return []
-    steps = derivs.get(fact)
-    if not steps:
-        return []
-    visiting = visiting | {fact}
+_PROB_CACHE: dict[int, tuple[dict[Fact, list[DerivationStep]], _ProbTable]] = {}
 
-    best_step = max(steps, key=lambda s: s.prob)
+
+def _prob_table(derivs: dict[Fact, list[DerivationStep]]) -> _ProbTable:
+    hit = _PROB_CACHE.get(id(derivs))
+    if hit is not None and hit[0] is derivs:
+        return hit[1]
+    table = _ProbTable(derivs)
+    _PROB_CACHE.clear()  # 변형 하나씩 처리하므로 최근 것 하나만 둔다
+    _PROB_CACHE[id(derivs)] = (derivs, table)
+    return table
+
+
+def _fact_prob(fact: Fact, derivs: dict[Fact, list[DerivationStep]]) -> float:
+    """사실의 확률 (AND=곱, OR=noisy-OR, 순환 배제). 계산 방식은 _ProbTable 참고."""
+    return round(_prob_table(derivs).prob.get(fact, 0.0), 4)
+
+
+def _sample_path(fact: Fact, derivs: dict[Fact, list[DerivationStep]]) -> list[DerivationStep]:
+    """확률 기여가 가장 큰 단계를 따라 내려간 대표 경로 (공유 하위 단계는 한 번만)."""
+    table = _prob_table(derivs)
     path: list[DerivationStep] = []
-    for prem in best_step.premises:
-        path.extend(_sample_path(prem, derivs, visiting))
-    path.append(best_step)
+    seen: set[Fact] = set()
+
+    def walk(f: Fact) -> None:
+        if f in seen or f not in table.best:
+            return
+        seen.add(f)
+        step = table.best[f]
+        for pr in step.premises:
+            walk(pr)
+        path.append(step)
+
+    walk(fact)
     return path
 
 

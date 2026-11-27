@@ -1,6 +1,6 @@
 """범용 DSL 규칙 평가기 (WBS 3.1).
 
-`rules/*.yaml`의 선언적 규칙을 그대로 실행해 공격자 상태 사실(Fact)과 유도 단계(DerivationStep)를
+`src/scengen/rules/*.yaml`의 선언적 규칙을 그대로 실행해 공격자 상태 사실(Fact)과 유도 단계(DerivationStep)를
 고정점까지 만든다. 얇은 엔진(`thin.py`)이 Python으로 직접 짠 R1~R11을 대체하는 것이 목적이며,
 얇은 엔진은 사실 집합 회귀 기준선으로 남긴다.
 
@@ -26,14 +26,7 @@ from typing import Any, Iterator
 from ..ir.validate import profile_variants
 from ..rules.loader import RULES_DIR, WHEN_CLAUSES, load_rules
 from .graph import InfraGraph, is_group_ref, strip_group_prefix
-from .model import PRIVILEGE_ORDER, DerivationStep, Fact, VariantResult, obj_confidence, priv_at_least, unwrap_attr
-
-CAPABILITY_FACTOR: dict[str, float] = {
-    "low": 0.45,
-    "medium": 0.70,
-    "high": 0.88,
-    "advanced": 0.96,
-}
+from .model import CAPABILITY_FACTOR, PRIVILEGE_ORDER, DerivationStep, Fact, VariantResult, obj_confidence, priv_at_least, unwrap_attr
 
 # 관계 속성이 생략됐을 때의 의미 (IR 스펙 기본값)
 REL_ATTR_DEFAULTS: dict[str, Any] = {
@@ -163,16 +156,31 @@ def load_ruleset(rules_dir: str | Path = RULES_DIR, files: list[str] | None = No
     return [compile_rule(r) for r in res.rules]
 
 
-def _clause_vars(clause: Any) -> set[str]:
+_CLAUSE_VARS_CACHE: dict[int, tuple[Any, frozenset[str]]] = {}
+
+
+def _clause_vars(clause: Any) -> frozenset[str]:
+    """절에 나오는 변수 이름. 규칙 객체는 실행 중 바뀌지 않으므로 객체 id로 캐시한다."""
+    if isinstance(clause, str):
+        return frozenset(VAR_RE.findall(clause))
+    hit = _CLAUSE_VARS_CACHE.get(id(clause))
+    if hit is not None and hit[0] is clause:
+        return hit[1]
+    result = frozenset(_collect_clause_vars(clause))
+    _CLAUSE_VARS_CACHE[id(clause)] = (clause, result)  # 원본 참조를 함께 들고 있어 id 재사용을 막는다
+    return result
+
+
+def _collect_clause_vars(clause: Any) -> set[str]:
     found: set[str] = set()
     if isinstance(clause, str):
         found.update(VAR_RE.findall(clause))
     elif isinstance(clause, list):
         for x in clause:
-            found |= _clause_vars(x)
+            found |= _collect_clause_vars(x)
     elif isinstance(clause, dict):
         for v in clause.values():
-            found |= _clause_vars(v)
+            found |= _collect_clause_vars(v)
     return found
 
 
@@ -522,7 +530,7 @@ class RuleEvaluator:
                 yield gb
 
     def _c_reaches(self, rule: CompiledRule, arg: dict[str, Any], b: Bind) -> Iterator[Bind]:
-        for gb in self._ground(rule, [arg.get("from"), arg.get("to"), arg.get("port"), arg.get("protocol")], b):
+        for gb in self._ground(rule, arg, b):
             src, dst = self._value(arg["from"], gb), self._value(arg["to"], gb)
             port = self._value(arg.get("port"), gb) if "port" in arg else None
             proto = self._value(arg.get("protocol"), gb) if "protocol" in arg else None
@@ -560,10 +568,37 @@ class RuleEvaluator:
         if nb is not None:
             yield nb
 
+    def _endpoint_refs(self, rule: CompiledRule, expr: Any, b: Bind) -> list[str] | None:
+        """끝점 expr이 이미 정해졌으면 관계에 적혔을 수 있는 참조 목록(자산 id + 소속 그룹 참조), 아니면 None."""
+        if expr is None:
+            return None
+        if not _is_var(expr):
+            return [str(expr)]
+        var = expr[1:]
+        if not b.has(var):
+            return None
+        val = b.get(var)
+        if (rule.vars.get(var) or {}).get("type") == "group":
+            return [f"group:{val}"]
+        return [val] + [f"group:{gid}" for gid in sorted(self.g.asset_groups(val))]
+
+    def _candidate_relations(self, rule: CompiledRule, rtype: str, arg: dict[str, Any], b: Bind) -> list[dict[str, Any]]:
+        """끝점이 정해진 쪽의 인덱스로 후보 관계를 좁힌다. 순서는 IR에 적힌 순서를 유지한다."""
+        for side, index in (("from", self.g.rel_index_from), ("to", self.g.rel_index_to)):
+            refs = self._endpoint_refs(rule, arg.get(side), b)
+            if refs is None:
+                continue
+            pos: set[int] = set()
+            for ref in refs:
+                pos.update(index.get((rtype, ref), ()))
+            rels = self.g.by_type.get(rtype, [])
+            return [rels[i] for i in sorted(pos)]
+        return self.g.by_type.get(rtype, [])
+
     def _c_relation(self, rule: CompiledRule, arg: dict[str, Any], b: Bind) -> Iterator[Bind]:
         rtype = arg["type"]
         attrs = {k: v for k, v in arg.items() if k not in ("type", "from", "to", "action_in", "expand_groups")}
-        for r in self.g.by_type.get(rtype, []):
+        for r in self._candidate_relations(rule, rtype, arg, b):
             if "action_in" in arg and r.get("action", REL_ATTR_DEFAULTS["action"]) not in arg["action_in"]:
                 continue
             expand = arg.get("expand_groups", True) and r.get("inherit") is not False
